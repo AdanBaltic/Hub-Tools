@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+	<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>IO Gen</title>
+
+	<link rel="icon" type="image/png" href="../../assets/company/by-logo-simple-blue.png">
+
+	<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+	<link rel="stylesheet" href="css/iogen-app.css" />
+	</head>
+
+	<body>
+	<div id="app">
+
+		<!-- ── UPLOAD SCREEN ── -->
+		<div v-if="screen === 'upload'" class="upload-screen">
+
+			<header class="upload-nav">
+				<nav class="upload-nav-bar">
+					<a href="../../index.html" class="back-btn">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+						Volver
+					</a>
+					<div class="theme-switch-container">
+						<svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor">
+							<circle cx="12" cy="12" r="5"/>
+							<rect x="11" y="1" width="2" height="3" rx="1"/>
+							<rect x="11" y="20" width="2" height="3" rx="1"/>
+							<rect x="1" y="11" width="3" height="2" rx="1"/>
+							<rect x="20" y="11" width="3" height="2" rx="1"/>
+							<rect x="3.5" y="3.5" width="2" height="3" rx="1" transform="rotate(45 3.5 3.5)"/>
+							<rect x="18.5" y="3.5" width="2" height="3" rx="1" transform="rotate(-45 18.5 3.5)"/>
+							<rect x="3.5" y="20.5" width="2" height="3" rx="1" transform="rotate(-45 3.5 20.5)"/>
+							<rect x="18.5" y="20.5" width="2" height="3" rx="1" transform="rotate(45 18.5 20.5)"/>
+						</svg>
+						<label class="switch">
+							<input type="checkbox" :checked="isDarkMode" @change="toggleTheme()">
+							<span class="slider"></span>
+						</label>
+						<svg class="theme-icon" viewBox="0 0 24 24" fill="currentColor">
+							<path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+						</svg>
+					</div>
+				</nav>
+			</header>
+
+			<div class="upload-center">
+				<div class="upload-card">
+					<h1>I/O List Code Generator</h1>
+					<p class="upload-subtitle">Selecciona un archivo Excel con la lista de I/Os para comenzar.</p>
+
+					<label class="upload-btn">
+						Seleccionar archivo
+						<input type="file" @change="onFile" accept=".xlsx,.xls,.xlsm" style="display:none" />
+					</label>
+
+					<p class="upload-hint">.xlsx · .xls · .xlsm</p>
+
+					<div v-if="fileError" class="upload-error">{{ fileError }}</div>
+				</div>
+			</div>
+
+		</div>
+
+		<!-- ── MAIN APP ── -->
+		<template v-if="screen === 'app'">
+		<div class="app-shell">
+
+			<header class="app-top-nav">
+				<div class="nav-left">
+					<a href="../../index.html" class="hub-btn">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+						HUB
+					</a>
+				</div>
+
+				<div class="nav-center">
+					<div class="nav-dropdowns">
+						<div class="dropdown">
+							<button class="dropbtn">GVL ▾</button>
+							<div class="dropdown-content">
+								<button :class="{ active: activeSection === 'io_tags' }" @click="activeSection = 'io_tags'">IO_Tags</button>
+								<button :class="{ active: activeSection === 'gvl' }" @click="activeSection = 'gvl'">GVL</button>
+								<button :class="{ active: activeSection === 'alarm_tags' }" @click="activeSection = 'alarm_tags'">Alarm_tags</button>
+							</div>
+						</div>
+
+						<div class="dropdown">
+							<button class="dropbtn">Alarms PRG ▾</button>
+							<div class="dropdown-content">
+								<button :class="{ active: activeSection === 'alarms_decl' }" @click="activeSection = 'alarms_decl'">Declarations</button>
+								<button :class="{ active: activeSection === 'alarms_prog' }" @click="activeSection = 'alarms_prog'">Program</button>
+							</div>
+						</div>
+
+						<div class="dropdown">
+							<button class="dropbtn">Scaling ▾</button>
+							<div class="dropdown-content">
+								<button :class="{ active: activeSection === 'var_scale' }" @click="activeSection = 'var_scale'">VariableScale</button>
+								<button :class="{ active: activeSection === 'var_map' }" @click="activeSection = 'var_map'">VariableMapping</button>
+							</div>
+						</div>
+
+						<div class="dropdown">
+							<button class="dropbtn">Files ▾</button>
+							<div class="dropdown-content">
+								<button :class="{ active: activeSection === 'tmc' }" @click="activeSection = 'tmc'">Alarms.tmc</button>
+							</div>
+						</div>
+
+						<div class="dropdown">
+							<button class="dropbtn">System ▾</button>
+							<div class="dropdown-content">
+								<button :class="{ active: activeSection === 'debug' }" @click="activeSection = 'debug'">Debug</button>
+							</div>
+						</div>
+					</div>
+
+					<div class="nav-divider"></div>
+
+					<div class="nav-pills-container">
+						<span class="pill">{{ usedSheetName || '-' }}</span>
+						<span class="pill" style="border-color: var(--accent-color);">I/Os: {{ controlCount || '-' }}</span>
+					</div>
+				</div>
+
+				<div class="nav-right">
+					<label class="nav-file-btn" title="Cargar otro archivo">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+						<input type="file" @change="onFile" accept=".xlsx,.xls,.xlsm" style="display:none" />
+					</label>
+					
+					<div class="theme-switch-container">
+						<label class="switch">
+							<input type="checkbox" :checked="isDarkMode" @change="toggleTheme()">
+							<span class="slider"></span>
+						</label>
+					</div>
+				</div>
+
+			</header>
+
+			<main class="content-area">
+
+				<div v-if="activeSection === 'io_tags'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">IO_Tags <span class="window-sub">GVL – Hardware linked tags</span></span>
+						<div class="window-actions">
+							<button class="copyBtn" @click="copyText(tagsText, 'IO_Tags')">Copy</button>
+							<button class="copyBtn" @click="downloadXmlIO()">Create IO_Tags.xml</button>
+						</div>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(tagsText)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'gvl'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">GVL <span class="window-sub">GVL – Internal tags</span></span>
+						<div class="window-actions">
+							<button class="copyBtn" @click="copyText(GVLtags, 'GVL_Tags')">Copy</button>
+							<button class="copyBtn" @click="downloadXmlGVL()">Create GVL.xml</button>
+						</div>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(GVLtags)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'alarm_tags'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">Alarm_tags <span class="window-sub">GVL</span></span>
+						<div class="window-actions">
+							<button class="copyBtn" @click="copyText(alarmTagsText, 'Alarm_tags')">Copy</button>
+							<button class="copyBtn" @click="downloadXmlAlarm()">Create Alarm_tags.xml</button>
+						</div>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(alarmTagsText)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'alarms_decl'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">Alarms <span class="window-sub">PRG – Declarations</span></span>
+						<button class="copyBtn" @click="copyText(alarmsTwinCatDeclaration, 'Alarms Declarations')">Copy</button>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(alarmsTwinCatDeclaration)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'alarms_prog'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">Alarms <span class="window-sub">PRG – Program</span></span>
+						<button class="copyBtn" @click="copyText(alarmsTwinCatProgram, 'Alarms Program')">Copy</button>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(alarmsTwinCatProgram)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'var_scale'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">VariableScale <span class="window-sub">Program</span></span>
+						<button class="copyBtn" @click="copyText(variableScalingProgram, 'VariableScale')">Copy</button>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(variableScalingProgram)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'var_map'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">VariableMapping <span class="window-sub">Program</span></span>
+						<button class="copyBtn" @click="copyText(variableMappingProgram, 'VariableMapping')">Copy</button>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(variableMappingProgram)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'tmc'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">Alarms <span class="window-sub">.tmc file</span></span>
+						<div class="window-actions">
+							<button class="copyBtn" @click="copyText(tmcText, 'Alarms.tmc Copy')">Copy</button>
+							<button class="copyBtn" @click="downloadTmc()">Create Alarms.tmc</button>
+						</div>
+					</div>
+					<pre class="code-editor" v-html="highlightPLC(tmcText)"></pre>
+				</div>
+
+				<div v-if="activeSection === 'debug'" class="code-window">
+					<div class="window-bar">
+						<span class="window-title">Debug</span>
+					</div>
+					<pre class="code-editor">{{ debug }}</pre>
+				</div>
+
+			</main>
+		</div>
+		</template>
+
+	</div>
+
+	<script src="config.js"></script>
+	<script src="js/theme.js"></script>
+	<script src="js/templates.js"></script>
+	<script src="js/plc-helpers.js"></script>
+	<script src="js/xml-builders.js"></script>
+	<script src="js/excel-helpers.js"></script>
+	<script src="js/generators.js"></script>
+	<script src="js/app.js"></script>
+	</body>
+</html>

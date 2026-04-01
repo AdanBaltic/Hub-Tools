@@ -1,0 +1,38 @@
+[
+  {
+    "icon": "⇄",
+    "title": "IO Gen",
+    "description": "No se que descripcion poner",
+    "href": "tools/IO Gen/index.html"
+  },
+  {
+    "icon": "⚡",
+    "title": "Auto-Scraper",
+    "description": "Extrae datos de páginas web.",
+    "href": "#"
+  },
+  {
+    "icon": "📂",
+    "title": "Archivos",
+    "description": "Organiza la carpeta descargas.",
+    "href": "#"
+  },
+  {
+    "icon": "✉️",
+    "title": "Correos",
+    "description": "Bot de envío masivo.",
+    "href": "http://localhost:3000"
+  },
+  {
+    "icon": "📊",
+    "title": "Reportes",
+    "description": "Generador de reportes mensuales.",
+    "href": "#"
+  },
+  {
+    "icon": "📸",
+    "title": "Imágenes",
+    "description": "Optimizador de imágenes web.",
+    "href": "#"
+  }
+]

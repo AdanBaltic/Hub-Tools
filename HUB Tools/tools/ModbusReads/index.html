@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Modbus POU Generator</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1400px; margin: 0 auto; padding: 16px; background: #fbfbfd; }
+    h1 { margin: 0 0 8px 0; }
+    .topbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:12px; }
+    .muted { color: #555; font-size: 12px; }
+    .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+    .col { flex: 1; min-width: 320px; }
+
+    .box { border: 1px solid #ddd; border-radius: 10px; padding: 12px; background: #fff; }
+    .boxHeader { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .hr { height: 1px; background: #eee; margin: 12px 0; }
+
+    .btn { padding: 6px 10px; border: 1px solid #cfcfcf; border-radius: 8px; background: #fff; cursor: pointer; }
+    .btn:active { border: 1px solid #afafaf; background: #eee; }
+    .btnDanger { border-color: #f0b3b3; }
+    .btnPrimary { border-color: #b9c9ff; background: #f0f3ff; }
+
+    .pill { background: #f0f3ff; border: 1px solid #d7defc; padding: 3px 10px; border-radius: 999px; font-size: 12px; }
+    .small { font-size: 12px; }
+
+    textarea { width: 100%; box-sizing: border-box; font-family: Consolas, "Courier New", monospace; margin: 10px 0 0 0; }
+    pre { background: #f6f6f6; padding: 10px; border-radius: 8px; overflow: auto; }
+
+    label { display: block; font-size: 12px; color: #333; margin-top: 8px; }
+    input, select { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
+
+    .grid4 { display: grid; grid-template-columns: 1.2fr 1.4fr 0.8fr 0.8fr; gap: 10px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Device "card" improvements (shadow + accent) */
+    .deviceCard {
+      border: 1px solid #e6e6e6;
+      border-left: 6px solid #b9c9ff;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .deviceTop {
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .deviceMeta {
+      color:#666;
+      font-size: 12px;
+      margin-top: 6px;
+      line-height: 1.35;
+    }
+	
+	.excelCfg{
+	  border: 1px dashed #d7defc;
+	  border-radius: 12px;
+	  padding: 10px 12px 6px 12px;
+	  margin-bottom: 10px;
+	  background: #f8faff;
+	}
+
+	.excelLegend{
+	  padding: 0 8px;
+	  font-size: 12px;
+	  color: #333;
+	}
+
+	.excelCfg:disabled{
+	  opacity: 0.55;
+	}
+    .readingsBox {
+      margin-top: 10px;
+      border: 1px solid #dfe6ff;
+      background: #fafbff;
+      border-radius: 12px;
+      padding: 8px;
+    }
+
+    .readingsHeaderRow {
+      display: grid;
+      grid-template-columns: 130px 1fr 1fr;
+      gap: 80px;
+      align-items:end;
+      padding: 4px 0 8px 125px;
+      border-bottom: 1px solid #e9edff;
+      margin-bottom: 6px;
+    }
+
+    .readingRow {
+      display:grid;
+      grid-template-columns: 110px 1fr 1fr auto;
+      gap: 10px;
+      align-items:center;
+      padding: 6px 0;
+      border-bottom: 1px solid #e9edff;
+    }
+
+    .readingRow:last-child { border-bottom: none; }
+
+	.readingLabel{
+	  display: flex;
+	  align-items: center;
+	  height: 100%;
+	  font-size: 12px;
+	  color: #444;
+	  white-space: nowrap;
+	}
+	
+	.readingActions{
+	  display: flex;
+	  align-items: center;  /* Key: same vertical alignment */
+	  justify-content: flex-end;
+	  min-width: 90px;
+	}
+
+    .readingIdx {
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap: 8px;
+      min-width: 110px;
+    }
+	
+	.fileInput{
+	  margin-top: 10px;   /* o margin-left, según el efecto que quieras */
+	}
+
+    .inlineHint { font-size: 12px; color:#666; margin-top: 6px; }
+  </style>
+</head>
+
+<body>
+<div id="app">
+  <h1>Modbus POU Generator</h1>
+  <div class="muted">Generates TwinCAT ST for PROGRAM Modbus (FB_Modbus_ReadDevice, ST_ModbusRead).</div>
+
+  <div class="topbar">
+    <input class="fileInput" type="file" @change="onFile" accept=".xlsx,.xls,.xlsm" />
+    <span class="pill">Sheet: {{ usedSheetName || '-' }}</span>
+	<span class="pill" @click="showRoots = !showRoots" 
+		  style="cursor: pointer;">
+	  Roots: {{ rootsCount }} {{ showRoots ? '▼' : '▶' }}
+	</span>
+
+	<div v-if="showRoots && rootsList.length" 
+		 style="display: flex; flex-wrap: wrap; gap: 4px; 
+				padding: 4px 8px; background: #f8f9fa; 
+				border-radius: 4px; margin-top: 2px; 
+				font-size: 0.85em; border-left: 3px solid #b9c9ff;">
+	  <span v-for="root in rootsList" :key="root" 
+			style="padding: 2px 8px; background: white; 
+				   border: 1px solid #d7defc; border-radius: 12px; 
+				   font-weight: 500;">
+		{{ root }}
+	  </span>
+	</div>
+    <span class="pill">Devices found: {{ devices.length }}</span>
+    <!--<span class="pill">Readings: {{ totalReadings }}</span>
+    <span class="muted">Excel must include columns: NAME, TYPE, and a Modbus register column.</span>-->
+  </div>
+  
+  <div class="row" style="margin-top:12px;">
+    <div class="col box">
+      <div class="boxHeader">
+        <h3 style="margin:0;">Configuration</h3>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btnPrimary" @click="addDevice">+ Add device</button>
+          <button class="btn" @click="generate">Generate</button>
+          <button class="btn btnDanger" @click="resetAll">Reset</button>
+        </div>
+      </div>
+	  
+	<div style="display:flex; gap:8px; flex-wrap:wrap; padding: 8px 12px; margin-bottom:10px; justify-content: flex-end;">
+	  <button class="btn" @click="rebuildFromRows" :disabled="rows.length===0">Rebuild from Excel</button>
+	  <button class="btn btnDanger" @click="clearExcel" :disabled="rows.length===0">Clear Excel</button>
+	</div>
+	
+      <div class="hr"></div>
+	  
+	  <fieldset class="excelCfg" :disabled="!excelLoaded">
+	  <legend class="excelLegend">
+		Excel settings
+		<span class="muted small" v-if="!excelLoaded">(load an Excel to enable)</span>
+	  </legend>
+
+	  <div class="grid4" style="margin-bottom:10px;">
+		<div>
+		  <label>Header row</label>
+		  <input v-model.number="headerRowNumber" type="number" min="1" />
+		</div>
+		<div>
+		  <label>Preferred sheet name</label>
+		  <input v-model="preferredSheetName" placeholder="IO-list" />
+		</div>
+		<div>
+		  <label>Holding base</label>
+		  <select v-model.number="holdingBase">
+			<option :value="40001">40001 (40123 → offset 122)</option>
+			<option :value="40000">40000 (40123 → offset 123)</option>
+		  </select>
+		</div>
+		<div>
+		  <label>Max regs/read</label>
+		  <input v-model.number="maxRegsPerRead" type="number" min="1" max="125" />
+		</div>
+	  </div>
+
+	  <div class="grid2" style="margin-bottom:10px;">
+		<div>
+		  <label>Max gap (regs)</label>
+		  <input v-model.number="maxGapRegs" type="number" min="0" />
+		</div>
+		<div>
+		  <label>Max waste (%)</label>
+		  <input v-model.number="maxWastePct" type="number" min="0" max="100" />
+		</div>
+	  </div>
+
+	</fieldset>
+
+      <div v-for="(dev, dIdx) in devices" :key="dev.id" class="deviceCard">
+        <div class="deviceTop">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <span class="pill">Device #{{ dIdx + 1 }}</span>
+            <strong style="font-weight:600;">{{ dev.name || "(unnamed)" }}</strong>
+          </div>
+          <button class="btn btnDanger" @click="removeDevice(dIdx)" :disabled="devices.length === 1">Remove device</button>
+        </div>
+		<!-- 
+        <div class="deviceMeta">
+          FB: <code>{{ autoReadFbName(dev.name, dIdx) }}</code>,
+          Adr: <code>{{ autoAdrArrayName(dev.name, dIdx) }}</code>,
+          Data: <code>{{ autoDataName(dev.name, dIdx) }}</code>
+        </div>
+		-->
+		<div class="deviceMeta">
+		  {{ dev.points?.length || 0 }} tags found:
+		  Registers: 
+		  <span v-if="dev.points && dev.points.length">
+			{{ dev.points[0].start }} to {{ dev.points[dev.points.length - 1].end }}
+			· Vars: 
+			{{ dev.points.map(p => p.name).join(', ') }}
+		  </span>
+		  <span v-else>-</span>
+		</div>
+
+        <div class="grid4" style="margin-top:10px;">
+          <div>
+            <label>Device name</label>
+            <input v-model="dev.name" placeholder="e.g. Shore, GenPort, ME" />
+          </div>
+          <div>
+            <label>IP address</label>
+            <input v-model="dev.ip" placeholder="e.g. 192.168.1.73" />
+          </div>
+          <div>
+            <label>Slave ID</label>
+            <input v-model="dev.slaveId" type="number" min="0" max="255" />
+          </div>
+          <div>
+            <label>Data type</label>
+            <select v-model="dev.dataType">
+              <option value="C">C</option>
+              <option value="I">I</option>
+              <option value="IW">IW</option>
+              <option value="MW">MW</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="boxHeader">
+          <!--<h4 style="margin:0;">Readings</h4>-->
+          <button class="btn btnPrimary" @click="addReading(dIdx)">+ Add reading</button>
+        </div>
+
+        <div class="readingsBox">
+          <div class="readingsHeaderRow">
+            <div>
+              <label style="margin-top:0;">Start address (WORD)</label>
+            </div>
+            <div>
+              <label style="margin-top:0;">Length (registers)</label>
+            </div>
+          </div>
+
+          <div v-for="(rd, rIdx) in dev.readings" :key="rd.id" class="readingRow">
+		    <div class="readingLabel">Reading #{{ rIdx + 1 }}</div>
+		  
+		    <div>
+		  	  <input v-model="rd.address" type="number" min="0" max="65535" placeholder="" />
+		    </div>
+		  
+		    <div>
+		  	  <input v-model="rd.length" type="number" min="1" max="65535" placeholder="" />
+		    </div>
+		  
+		    <div class="readingActions">
+		  	  <button v-if="rIdx > 0" class="btn btnDanger" @click="removeReading(dIdx, rIdx)">Remove</button>
+		    </div>
+		  </div>
+        </div>
+      </div>
+	  <div class="box" style="margin-top:16px;">
+		<div class="boxHeader">
+		  <h3 style="margin:0;">Debug</h3>
+		  <button class="btn" @click="copyText(debug, 'Debug')">Copy</button>
+		</div>
+		<pre>{{ debug }}</pre>
+	  </div>
+    </div>
+	  
+    <div class="col">
+      <div class="row">
+        <div class="col box">
+          <div class="boxHeader">
+            <h3 style="margin:0;">Declarations</h3>
+            <button class="btn" @click="copyText(stDecl, 'Declarations')">Copy</button>
+          </div>
+          <textarea v-model="stDecl" rows="20" readonly></textarea>
+        </div>
+
+        <div class="col box">
+          <div class="boxHeader">
+            <h3 style="margin:0;">Program</h3>
+            <button class="btn" @click="copyText(stProg, 'Program')">Copy</button>
+          </div>
+          <textarea v-model="stProg" rows="20" readonly></textarea>
+        </div>
+		
+		<div class="col box">
+		  <div class="boxHeader">
+			<h3 style="margin:0;">VariableMapping (Program)</h3>
+			<button class="btn" @click="copyText(stVarMap, 'VariableMapping')">Copy</button>
+		  </div>
+		  <textarea v-model="stVarMap" rows="20" readonly></textarea>
+		</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      // Excel settings
+      preferredSheetName: "IO-list",
+      usedSheetName: "",
+      headerRowNumber: 10,
+
+      // Modbus addressing + packing rules
+      holdingBase: 40001,       // 40001 => 40123 -> 122 ; 40000 => 40123 -> 123 [web:68]
+      maxRegsPerRead: 125,      // FC03/04 typically 1..125 contiguous regs [web:56]
+      maxGapRegs: 5,
+      maxWastePct: 25,
+
+      // Excel raw data
+      rows: [],
+      points: [],
+
+      // Manual / generated config
+      devices: [
+        {
+          id: crypto.randomUUID(),
+          name: "Device",
+          ip: "",
+          slaveId: "",
+          dataType: "MW",
+          readings: [
+            { id: crypto.randomUUID(), address: "", length: "" }
+          ]
+        }
+      ],
+
+      stDecl: "",
+      stProg: "",
+	  
+	  //Variable mapping
+	  stVarMap: "",
+
+	  rows: [],
+	  points: [],
+	  
+	  preferredSheetName: "IO-list",
+	  usedSheetName: "",
+	  headerRowNumber: 10,
+	  holdingBase: 40001,
+	  maxRegsPerRead: 125,
+	  maxGapRegs: 5,
+	  maxWastePct: 25,
+	  
+	  // Roots
+	  showRoots: false,
+	
+      debug: ""
+    };
+  },
+
+  computed: {
+	rootsCount() {
+	  const roots = this.points.map(p => p.root).filter(Boolean);
+	  return new Set(roots).size;
+	},
+	rootsList() {
+	  const roots = this.points.map(p => p.root).filter(Boolean);
+	  return Array.from(new Set(roots)).sort();
+	},
+    totalReadings() {
+      return (this.devices || []).reduce((acc, d) => acc + (d.readings?.length || 0), 0);
+    },
+	excelLoaded() {
+  	  return Array.isArray(this.rows) && this.rows.length > 0;
+    },
+  },
+
+  methods: {
+    // -----------------------------
+    // Existing helpers (yours)
+    // -----------------------------
+    toIdentifier(s) {
+      const raw = String(s ?? "").trim();
+      if (!raw) return "";
+      const cleaned = raw
+        .replace(/\s+/g, "_")
+        .replace(/[^A-Za-z0-9_]/g, "_")
+        .replace(/_+/g, "_");
+      const startsOk = /^[A-Za-z_]/.test(cleaned) ? cleaned : ("_" + cleaned);
+      return startsOk;
+    },
+
+    autoDevId(deviceName, dIdxFallback) {
+      const id = this.toIdentifier(deviceName);
+      return id || ("Device" + (dIdxFallback + 1));
+    },
+
+    autoReadFbName(deviceName, dIdxFallback) {
+      const devId = this.autoDevId(deviceName, dIdxFallback);
+      return `Read_${devId}`;
+    },
+    autoAdrArrayName(deviceName, dIdxFallback) {
+      const devId = this.autoDevId(deviceName, dIdxFallback);
+      return `Modbus${devId}_adr`;
+    },
+    autoDataName(deviceName, dIdxFallback) {
+      const devId = this.autoDevId(deviceName, dIdxFallback);
+      return `${devId}_Data`;
+    },
+    autoNReadName(deviceName, dIdxFallback) {
+      const devId = this.autoDevId(deviceName, dIdxFallback);
+      return `nRead${devId}`;
+    },
+    autoSizeRegName(deviceName, dIdxFallback) {
+      const devId = this.autoDevId(deviceName, dIdxFallback);
+      return `sizeReg${devId}`;
+    },
+
+    addDevice() {
+      this.devices.push({
+        id: crypto.randomUUID(),
+        name: "Device" + (this.devices.length + 1),
+        ip: "",
+        slaveId: "",
+        dataType: "MW",
+        readings: [{ id: crypto.randomUUID(), address: "", length: "" }]
+      });
+      this.debug = "Device added.";
+      this.generate();
+    },
+
+    removeDevice(dIdx) {
+      if (this.devices.length <= 1) return;
+      this.devices.splice(dIdx, 1);
+      this.debug = "Device removed.";
+      this.generate();
+    },
+
+    addReading(dIdx) {
+      this.devices[dIdx].readings.push({ id: crypto.randomUUID(), address: "", length: "" });
+      this.debug = "Reading added.";
+      this.generate();
+    },
+
+    removeReading(dIdx, rIdx) {
+      const dev = this.devices[dIdx];
+      if (rIdx === 0) return;
+      dev.readings.splice(rIdx, 1);
+      this.debug = "Reading removed.";
+      this.generate();
+    },
+
+    resetAll() {
+      this.devices = [
+        {
+          id: crypto.randomUUID(),
+          name: "Device",
+          ip: "",
+          slaveId: "",
+          dataType: "MW",
+          readings: [{ id: crypto.randomUUID(), address: "", length: "" }]
+        }
+      ];
+      this.stDecl = "";
+      this.stProg = "";
+      this.debug = "Reset done.";
+      this.generate();
+    },
+
+    toIntStrict(val) {
+      const s = String(val ?? "").trim();
+      if (s === "") return null;
+      const n = Number(s);
+      if (!Number.isFinite(n)) return null;
+      return Math.trunc(n);
+    },
+	
+    parseModbusCell(cell) {
+	  const s0 = String(cell ?? "").trim();
+	  if (!s0) return null;
+
+	  // 1) Separar bit si viene como "40123.7"
+	  let s = s0;
+	  let bit = null;
+	  if (s.includes(".")) {
+		const [a, b] = s.split(".");
+		s = a;
+		const bn = Number(b);
+		if (Number.isFinite(bn) && bn >= 0 && bn <= 15) bit = Math.trunc(bn);
+	  }
+
+	  // 2) Quitar todo lo que no sea dígito (por si viene "HR40123" o espacios raros)
+	  const digits = String(s).replace(/[^\d]/g, "");
+	  if (!digits) return null;
+
+	  // 3) Si empieza por "4", interpretamos como notación holding-register:
+	  //    "4" + (resto) => el resto es el número de registro (con ceros a la izquierda).
+	  //    Ej: 40123 => regNum=123; 400001 => regNum=1; 4098 => regNum=98
+	  //    Luego offset = regNum - baseRegNum, donde baseRegNum depende de holdingBase.
+	  let offset = null;
+
+	  if (digits.startsWith("4") && digits.length >= 2) {
+		const rest = digits.slice(1);           // "0123", "00001", "098", etc.
+		const regNum = Number(rest);            // 123, 1, 98
+		if (!Number.isFinite(regNum)) return null;
+
+		// holdingBase = 40001 -> baseRegNum = 1
+		// holdingBase = 40000 -> baseRegNum = 0
+		const baseRegNum = Number(String(this.holdingBase).replace(/[^\d]/g, "").slice(1));
+		offset = Math.trunc(regNum - baseRegNum);
+	  } else {
+		// Si no empieza por 4, lo tratamos como offset ya 0-based
+		offset = Math.trunc(Number(digits));
+	  }
+
+	  if (!Number.isFinite(offset) || offset < 0 || offset > 65535) return null;
+
+	  return { offset, bit, raw: s0 };
+	},
+	
+	buildVariableMappingProgram() {
+	  const lines = [];
+	  lines.push("// PROGRAM VariableMapping");
+	  lines.push("// Auto-generated mapping from Modbus buffers to GVL tags");
+	  lines.push("");
+
+	  const findReading = (dev, regOffset, words) => {
+		for (let i = 0; i < (dev.readings?.length || 0); i++) {
+		  const rd = dev.readings[i];
+		  const start = this.toIntStrict(rd.address);
+		  const len = this.toIntStrict(rd.length);
+		  if (start === null || len === null) continue;
+
+		  const end = start + len - 1;
+		  const needEnd = regOffset + (words - 1);
+
+		  if (regOffset >= start && needEnd <= end) {
+			const pos = (regOffset - start) + 1; // 1-based dentro del reading
+			return { readingIdx: i + 1, pos };
+		  }
+		}
+		return null;
+	  };
+
+	  // Referencia 2D como pediste: Modbus.<Dev>_Data[reading][pos]
+	  const wordExpr = (dev, readingIdx, pos) => {
+		const dataName = this.autoDataName(dev.name, 0); // ej: DeifShore_Data
+		return `Modbus.${dataName}[${readingIdx}][${pos}]`;
+	  };
+
+	  // 2 WORD -> UDINT: SHL(wordHi,16) OR wordLo (tu patrón)
+	  const udint32Expr = (hiWord, loWord) =>
+		`SHL(TO_UDINT(${hiWord}), 16) OR TO_UDINT(${loWord})`;
+
+	  for (const dev of (this.devices || [])) {
+		const pts = dev.points || [];
+		if (!pts.length) continue;
+
+		lines.push(`// Device ${this.autoDevId(dev.name, 0)}`);
+		lines.push("");
+
+		const sorted = [...pts].sort((a, b) =>
+		  (a.start - b.start) ||
+		  ((a.bit ?? -1) - (b.bit ?? -1)) ||
+		  String(a.name).localeCompare(String(b.name))
+		);
+
+		for (const p of sorted) {
+		  const tag = this.toIdentifier(p.name);
+		  if (!tag) continue;
+
+		  const t = String(p.type || "").toUpperCase();
+		  const words = p.words || 1;
+
+		  const hit = findReading(dev, p.start, words);
+		  if (!hit) {
+			lines.push(`// WARN: ${tag} at ${p.start}${p.bit!=null?'.'+p.bit:''} not covered by any reading`);
+			continue;
+		  }
+
+		  const w0 = wordExpr(dev, hit.readingIdx, hit.pos);
+
+		  // BOOL / DIGITAL
+		  const isBool = (t.includes("DIGITAL") || t === "BOOL");
+		  if (isBool && p.bit != null) {
+			lines.push(`${tag} := (${w0} AND SHL(WORD#1, ${p.bit})) <> WORD#0;`);
+			continue;
+		  }
+		  if (isBool) {
+			lines.push(`${tag} := ${w0} <> WORD#0;`);
+			continue;
+		  }
+
+		  // 2 registros (32-bit) -> UDINT/DINT/DWORD/REAL (numérico, sin IEEE float)
+		  if (words === 2) {
+			const w1 = wordExpr(dev, hit.readingIdx, hit.pos + 1);
+			const u32 = udint32Expr(w0, w1);
+
+			if (t === "DUINT" || t === "UDINT") lines.push(`${tag} := ${u32};`);
+			else if (t === "DINT") lines.push(`${tag} := TO_DINT(${u32});`);
+			else if (t === "DWORD") lines.push(`${tag} := TO_DWORD(${u32});`);
+			else if (t === "REAL") lines.push(`${tag} := TO_REAL(${u32});`);
+			else lines.push(`// WARN: ${tag} TYPE=${t} uses 2 regs but no rule, raw=${u32}`);
+
+			continue;
+		  }
+
+		  // 1 registro
+		  if (t === "WORD") lines.push(`${tag} := ${w0};`);
+		  else if (t === "BYTE") lines.push(`${tag} := TO_BYTE(${w0});`);
+		  else if (t === "INT") lines.push(`${tag} := TO_INT(${w0});`);
+		  else if (t === "UINT") lines.push(`${tag} := TO_UINT(${w0});`);
+		  else if (t === "SINT") lines.push(`${tag} := TO_SINT(${w0});`);
+		  else if (t === "USINT") lines.push(`${tag} := TO_USINT(${w0});`);
+		  else if (t === "REAL") lines.push(`${tag} := TO_REAL(${w0});`);
+		  else lines.push(`// WARN: ${tag} unsupported TYPE=${t}, raw=${w0}`);
+		}
+
+		lines.push("");
+	  }
+
+	  return lines.join("\n").trimEnd();
+	},
+
+    validate() {
+      const errors = [];
+      const warnings = [];
+      const usedNames = new Set();
+      let totalReadings = 0;
+
+      const checkUnique = (name, ctx) => {
+        const key = String(name).toLowerCase();
+        if (usedNames.has(key)) errors.push(`Duplicate identifier: ${name} (${ctx}).`);
+        usedNames.add(key);
+      };
+
+      this.devices.forEach((dev, dIdx) => {
+        totalReadings += (dev.readings?.length ?? 0);
+
+        const devName = String(dev.name ?? "").trim();
+        if (!devName) errors.push(`Device #${dIdx + 1}: Device name is required.`);
+        if (!String(dev.ip ?? "").trim()) errors.push(`Device #${dIdx + 1}: IP address is required.`);
+
+        const slave = this.toIntStrict(dev.slaveId);
+        if (slave === null) errors.push(`Device #${dIdx + 1}: Slave ID is required.`);
+        else if (slave < 0 || slave > 255) errors.push(`Device #${dIdx + 1}: Slave ID must be 0..255.`);
+
+        if (!String(dev.dataType ?? "").trim()) errors.push(`Device #${dIdx + 1}: Data type is required.`);
+
+        checkUnique(this.autoReadFbName(dev.name, dIdx), `Device #${dIdx + 1}`);
+        checkUnique(this.autoAdrArrayName(dev.name, dIdx), `Device #${dIdx + 1}`);
+        checkUnique(this.autoDataName(dev.name, dIdx), `Device #${dIdx + 1}`);
+        checkUnique(this.autoNReadName(dev.name, dIdx), `Device #${dIdx + 1}`);
+        checkUnique(this.autoSizeRegName(dev.name, dIdx), `Device #${dIdx + 1}`);
+
+        dev.readings.forEach((rd, rIdx) => {
+          const adr = this.toIntStrict(rd.address);
+          const len = this.toIntStrict(rd.length);
+
+          if (adr === null) errors.push(`Device #${dIdx + 1} Reading #${rIdx + 1}: Address is required.`);
+          else if (adr < 0 || adr > 65535) errors.push(`Device #${dIdx + 1} Reading #${rIdx + 1}: Address must be 0..65535.`);
+
+          if (len === null) errors.push(`Device #${dIdx + 1} Reading #${rIdx + 1}: Length is required.`);
+          else if (len < 1 || len > 65535) errors.push(`Device #${dIdx + 1} Reading #${rIdx + 1}: Length must be 1..65535.`);
+        });
+
+        const id = this.toIdentifier(devName);
+        if (!id) warnings.push(`Device #${dIdx + 1}: Device name becomes an empty identifier after sanitizing.`);
+      });
+
+      if (this.devices.length === 0) errors.push("At least one device is required.");
+      if (totalReadings === 0) errors.push("At least one reading is required.");
+
+      return { errors, warnings, totalReadings };
+    },
+
+    generate() {
+      const { errors, warnings, totalReadings } = this.validate();
+
+      const dbg = [];
+      dbg.push(`Devices: ${this.devices.length}`);
+      dbg.push(`Total readings: ${totalReadings}`);
+      dbg.push(`Excel sheet: ${this.usedSheetName || "-"}`);
+      dbg.push(`Excel points parsed: ${this.points.length}`);
+      //dbg.push(`Roots (from NAME): ${this.rootsCount}`);
+      if (warnings.length) dbg.push(`Warnings:\n- ${warnings.join("\n- ")}`);
+
+      if (errors.length) {
+        dbg.push(`Errors:\n- ${errors.join("\n- ")}`);
+        this.debug = dbg.join("\n");
+        this.stDecl = "";
+        this.stProg = "";
+        return;
+      }
+
+      const decl = [];
+      const prog = [];
+
+      decl.push("PROGRAM Modbus");
+      decl.push("");
+	  decl.push("VAR CONSTANT");
+	  this.devices.forEach((dev, dIdx) => {
+	    const devId = this.autoDevId(dev.name, dIdx);
+	  
+	    const nRead = dev.readings.length;
+	    const sizes = dev.readings.map(r => this.toIntStrict(r.length));
+	    const sizeReg = sizes.reduce((acc, x) => acc + (x ?? 0), 0);
+	  
+	    const nReadName = this.autoNReadName(dev.name, dIdx);
+	    const sizeRegName = this.autoSizeRegName(dev.name, dIdx);
+	  
+	    decl.push(`    // DATA ${dIdx + 1} - ${devId} unit`);
+	    decl.push(`    ${nReadName} : INT := ${nRead};`);
+	    decl.push(`    ${sizeRegName} : INT := ${sizeReg};`);
+	    decl.push("");
+	  });
+	  decl.push("END_VAR");
+	  decl.push("");
+	  
+	  decl.push("VAR");
+	  decl.push("    execute_read : BOOL;");
+	  decl.push("");
+
+      this.devices.forEach((dev, dIdx) => {
+        const devId = this.autoDevId(dev.name, dIdx);
+        const ip = String(dev.ip ?? "").trim();
+        const slaveId = this.toIntStrict(dev.slaveId);
+        const dt = String(dev.dataType ?? "").trim();
+
+        const nRead = dev.readings.length;
+        const sizes = dev.readings.map(r => this.toIntStrict(r.length));
+        const sizeReg = sizes.reduce((acc, x) => acc + (x ?? 0), 0);
+
+        const fbName = this.autoReadFbName(dev.name, dIdx);
+        const adrName = this.autoAdrArrayName(dev.name, dIdx);
+        const dataName = this.autoDataName(dev.name, dIdx);
+        const nReadName = this.autoNReadName(dev.name, dIdx);
+        const sizeRegName = this.autoSizeRegName(dev.name, dIdx);
+
+        decl.push(`    // DATA ${dIdx + 1} - ${devId} unit`);
+        decl.push(`    ${fbName} : FB_Modbus_ReadDevice;`);
+        decl.push(`    ${adrName} : ARRAY [1..${nReadName}] OF ST_ModbusRead := [ // Number of packages and length to read`);
+
+        dev.readings.forEach((r, rIdx) => {
+          const adr = this.toIntStrict(r.address);
+          const len = this.toIntStrict(r.length);
+          const comma = (rIdx < dev.readings.length - 1) ? "," : "";
+          decl.push(`        (Length := ${len}, Address := ${adr})${comma} //`);
+        });
+
+        decl.push("    ];");
+        decl.push(`    ${dataName} : ARRAY [1..${sizeRegName}] OF WORD;`);
+        decl.push("");
+
+        prog.push(`// Read ${devId}`);
+        prog.push(`${fbName}(`);
+        prog.push(`    IPaddr    := '${ip}',`);
+        prog.push(`    slaveID   := ${slaveId},`);
+        prog.push(`    dataType  := ENUM_ModbusDataType.${dt},`);
+        prog.push(`    addresses := ${adrName},`);
+        prog.push(`    data      := ${dataName},`);
+        prog.push(`    execute   := execute_read`);
+        prog.push(");");
+        prog.push("");
+      });
+
+      decl.push("END_VAR");
+
+      this.stDecl = decl.join("\n").trimEnd();
+      this.stProg = prog.join("\n").trimEnd();
+	  this.stVarMap = this.buildVariableMappingProgram();
+      dbg.push("Generation OK.");
+      this.debug = dbg.join("\n");
+    },
+
+    async copyText(text, label) {
+      const value = (text ?? "").toString();
+      if (!value.trim()) {
+        this.debug = `Nothing to copy (${label ?? "output"}).`;
+        return;
+      }
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(value);
+          this.debug = `Copied (${label ?? "output"}).`;
+          return;
+        }
+      } catch (err) {}
+
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        this.debug = `Copied (${label ?? "output"}) using fallback.`;
+      } catch (err) {
+        this.debug = `Copy failed (${label ?? "output"}): ${err?.message ? err.message : String(err)}`;
+      }
+    },
+
+    // -----------------------------
+    // NEW: Excel import + auto devices/readings
+    // -----------------------------
+    toStrTrim(v) {
+      return (v === null || v === undefined) ? "" : String(v).trim();
+    },
+    normalizeHeader(s) {
+      return this.toStrTrim(s).toLowerCase().replace(/\./g, "").replace(/\s+/g, " ");
+    },
+    pickSheetHeaderRowIndex() {
+      const fixedIdx = Math.max(0, this.headerRowNumber - 1);
+      const fixedRow = this.rows[fixedIdx] || [];
+      const fixedNorm = fixedRow.map(this.normalizeHeader);
+      if (fixedNorm.includes("name")) return fixedIdx;
+
+      const maxScan = Math.min(this.rows.length, 50);
+      for (let i = 0; i < maxScan; i++) {
+        const r = this.rows[i] || [];
+        const n = r.map(this.normalizeHeader);
+        if (n.includes("name") && n.includes("type")) return i;
+        if (n.includes("name")) return i;
+      }
+      return -1;
+    },
+    rootFromName(name) {
+      const s = this.toStrTrim(name);
+      if (!s) return "";
+      const idx = s.indexOf("_");
+      return idx === -1 ? s : s.slice(0, idx);
+    },
+    wordsForType(typeRaw) {
+      const t = this.toStrTrim(typeRaw).toUpperCase();
+      if (!t) return null;
+
+      if (t.includes("DIGITAL") || t === "BOOL") return 1;
+      if (t === "BYTE" || t === "WORD" || t === "INT" || t === "UINT" || t === "SINT" || t === "USINT") return 1;
+      if (t === "DINT" || t === "DUINT" || t === "REAL" || t === "DWORD") return 2;
+
+      return null;
+    },
+	
+    parseRegToOffset(regCell) {
+      const s = this.toStrTrim(regCell);
+      if (!s) return null;
+
+      const n = Number(s);
+      if (!Number.isFinite(n)) return null;
+
+      // Accept both: "40123 style" OR already-offset values like "4098"
+      const rounded = Math.trunc(n);
+      const off = (rounded >= 40000) ? (rounded - this.holdingBase) : rounded;
+
+      if (!Number.isFinite(off) || off < 0 || off > 65535) return null;
+      return off;
+    },
+
+    buildPointsFromRows() {
+      const headerRowIndex = this.pickSheetHeaderRowIndex();
+      if (headerRowIndex === -1) {
+        this.points = [];
+        this.debug = `Header row not found (expected row ${this.headerRowNumber} or a row containing NAME/TYPE).`;
+        return false;
+      }
+
+      const headerRaw = this.rows[headerRowIndex] || [];
+      const headerNorm = headerRaw.map(this.normalizeHeader);
+
+      const col = {};
+      headerNorm.forEach((h, i) => { if (h) col[h] = i; });
+	  
+	  const idxLocation = col["location"];
+      const idxNAME = col["name"];
+      const idxTYPE = col["type"];
+      const idxModbusReg =
+        col["modbus declaration"] ??
+        col["modbus"] ??
+        col["modbus reg"] ??
+        col["modbus register"];
+
+      if (idxNAME === undefined || idxTYPE === undefined || idxModbusReg === undefined || idxLocation === undefined) {
+        this.points = [];
+        this.debug = `Missing columns. Need LOCATION, NAME, TYPE, and (Modbus declaration|Modbus|Modbus reg|Modbus register). Header row used: ${headerRowIndex + 1}`;
+        return false;
+      }
+
+      const dataRows = this.rows.slice(headerRowIndex + 1);
+      const pts = [];
+      const typeErrors = [];
+
+	  for (let i = 0; i < dataRows.length; i++) {
+	    const r = dataRows[i] || [];
+	  
+	    const name = this.toStrTrim(r[idxNAME]);
+	    if (!name) continue;
+	  
+	    // Filtrar solo ModbusTCP (admite "ModbusTCP", "MODBUSTCP", "Modbus TCP", etc.)
+	    const locationRaw = this.toStrTrim(r[idxLocation]);
+	    const loc = locationRaw.toLowerCase().replace(/\s+/g, "");
+	    if (!loc.includes("modbustcp")) continue;
+	  
+	    const type = this.toStrTrim(r[idxTYPE]);
+	    const words = this.wordsForType(type);
+	    if (!words) {
+	  	typeErrors.push(`Row ${headerRowIndex + 2 + i}: unsupported TYPE "${type}" for tag ${name}`);
+	  	continue;
+	    }
+	  
+	    const mb = this.parseModbusCell(r[idxModbusReg]);
+	    if (!mb) {
+	  	// mejor acumular en vez de machacar debug cada fila
+	  	// badModbus.push({ row: headerRowIndex + 2 + i, val: r[idxModbusReg] });
+	  	continue;
+	    }
+		
+		const start = mb.offset;              
+		const end = start + words - 1;        
+	  
+	    pts.push({
+			name,
+			type: type.toUpperCase(),
+			start,
+			end,
+			bit: mb.bit,
+			regRaw: mb.raw,
+			words,
+			root: this.rootFromName(name)
+	    });
+	  }
+
+      this.points = pts;
+
+      if (typeErrors.length) {
+        this.debug = `Parsed points: ${pts.length}\nTYPE issues:\n- ${typeErrors.slice(0, 30).join("\n- ")}${typeErrors.length > 30 ? "\n- ..." : ""}`;
+      }
+
+      return true;
+    },
+
+    buildReadingsForDevice(points) {
+      const items = [...points].sort((a,b) => a.start - b.start || a.end - b.end);
+
+      const readings = [];
+      let cur = null; // {start,end,usedLen}
+
+      const flush = () => {
+        if (!cur) return;
+        const len = (cur.end - cur.start + 1);
+        readings.push({ id: crypto.randomUUID(), address: String(cur.start), length: String(len) });
+        cur = null;
+      };
+
+      for (const it of items) {
+        const itLen = it.words;
+
+        if (!cur) {
+          cur = { start: it.start, end: it.end, usedLen: itLen };
+          continue;
+        }
+
+        const gap = it.start - (cur.end + 1);
+        const newStart = cur.start;
+        const newEnd = it.end;
+        const newSpanLen = newEnd - newStart + 1;
+        const newUsedLen = cur.usedLen + itLen;
+        const waste = newSpanLen - newUsedLen;
+        const wastePct = newSpanLen > 0 ? (waste / newSpanLen) * 100 : 0;
+
+        const exceedMaxRegs = newSpanLen > this.maxRegsPerRead;
+        const exceedGap = gap > this.maxGapRegs;
+        const exceedWaste = wastePct > this.maxWastePct;
+
+        if (exceedMaxRegs || exceedGap || exceedWaste) {
+          flush();
+          cur = { start: it.start, end: it.end, usedLen: itLen };
+        } else {
+          cur.end = it.end;
+          cur.usedLen = newUsedLen;
+        }
+      }
+
+      flush();
+      return readings;
+    },
+
+    buildDevicesFromPoints() {
+      const byRoot = new Map();
+      for (const p of this.points) {
+        if (!p.root) continue;
+        if (!byRoot.has(p.root)) byRoot.set(p.root, []);
+        byRoot.get(p.root).push(p);
+      }	  
+
+      const newDevices = [];
+	  let devIdxGlobal = 0;
+
+      for (const [root, items] of byRoot.entries()) {
+        items.sort((a,b) => a.start - b.start || a.end - b.end || a.name.localeCompare(b.name));
+
+        // Split into device instances when register collides (including 2-word overlaps)
+        const rootDevices = []; // { used:Set<number>, points:[] }
+
+        for (const it of items) {
+          let placed = false;
+
+          for (const dev of rootDevices) {
+            let collides = false;
+            for (let r = it.start; r <= it.end; r++) {
+              if (dev.used.has(r)) { collides = true; break; }
+            }
+            if (!collides) {
+              for (let r = it.start; r <= it.end; r++) dev.used.add(r);
+              dev.points.push(it);
+              placed = true;
+              break;
+            }
+          }
+
+          if (!placed) {
+            const used = new Set();
+            for (let r = it.start; r <= it.end; r++) used.add(r);
+            rootDevices.push({ used, points: [it] });
+          }
+        }
+
+        rootDevices.forEach((d, idx) => {
+          const deviceName = root;
+		  const prev = this.devices?.[devIdxGlobal++] ?? null;
+
+		  newDevices.push({
+			id: prev?.id ?? crypto.randomUUID(),
+			name: prev?.name ?? deviceName,
+			ip: prev?.ip ?? "",
+			slaveId: prev?.slaveId ?? "",
+			dataType: prev?.dataType ?? "MW",
+			readings: this.buildReadingsForDevice(d.points),
+			points: d.points
+		  });
+        });
+      }
+
+      newDevices.sort((a,b) => a.name.localeCompare(b.name));
+      this.devices = (newDevices.length ? newDevices : this.devices);
+    },
+
+    rebuildFromRows() {
+	  const n = Array.isArray(this.rows) ? this.rows.length : -1;
+	  this.debug = `Rebuild clicked. rows.length=${n}, usedSheet=${this.usedSheetName || '-'}`;
+
+	  if (!Array.isArray(this.rows) || this.rows.length === 0) {
+		this.debug += "\nNo Excel loaded (rows is empty).";
+		return;
+	  }
+
+	  const ok = this.buildPointsFromRows();
+	  if (!ok) {
+		this.debug += "\nbuildPointsFromRows() returned false.";
+		return;
+	  }
+	  
+	  this.devices = this.devices.filter(dev => 
+		dev.name && dev.name.trim() !== 'Device' && 
+		dev.name.trim() !== 'unnamed' && 
+		!dev.name.startsWith('Device ')
+	  );
+
+	  this.buildDevicesFromPoints();
+	  this.debug += `\nDevices=${this.devices.length}, points=${this.points.length}`;
+	  this.generate();
+	  // this.debug = JSON.stringify(this.devices, null, 2);
+	},
+
+    clearExcel() {
+      this.rows = [];
+      this.points = [];
+      this.usedSheetName = "";
+      this.debug = "Excel cleared (manual mode).";
+      this.generate();
+    },
+
+    onFile(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) { this.debug = "No file selected."; return; }
+
+	  this.debug = `Loading file: ${file.name}`;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+          const data = new Uint8Array(evt.target.result);
+          const wb = XLSX.read(data, { type: "array" });
+
+          const sheetName = wb.SheetNames.includes(this.preferredSheetName)
+            ? this.preferredSheetName
+            : wb.SheetNames[0];
+
+          this.usedSheetName = sheetName;
+          const ws = wb.Sheets[sheetName];
+
+          this.rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: true, defval: "" });
+
+          this.debug = `Excel loaded. sheet=${sheetName}, rows=${this.rows.length}`;
+		  this.rebuildFromRows();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  },
+
+  mounted() {
+    this.generate();
+  }
+}).mount("#app");
+</script>
+</body>
+</html>
