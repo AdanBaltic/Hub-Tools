@@ -29,20 +29,20 @@
 body.dark-theme {
     --accent-color: #38bdf8;
     --accent-color-hover: rgba(56, 189, 248, 0.15);
-    --bg-color: #0f172a;
-    --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-    --text-main: #F9FAFB;
-    --text-muted: #9CA3AF;
-    --card-bg: rgba(30, 41, 59, 0.7);
-    --card-border: rgba(255, 255, 255, 0.06);
-    --card-hover-bg: rgba(30, 41, 59, 0.95);
+    --bg-color: #000000;
+    --bg-gradient: linear-gradient(135deg, #000000 0%, #1c1c1e 50%, #000000 100%);
+    --text-main: #f5f5f7;
+    --text-muted: #a1a1a6;
+    --card-bg: rgba(28, 28, 30, 0.7);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --card-hover-bg: rgba(44, 44, 46, 0.95);
     --card-hover-border: rgba(56, 189, 248, 0.25);
-    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    --card-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --card-hover-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
 
-    --glass-bg: rgba(15, 23, 42, 0.6);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --glass-bg: rgba(28, 28, 30, 0.55);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 
     --slider-bg: #4b5563;
     --slider-knob: #ffffff;

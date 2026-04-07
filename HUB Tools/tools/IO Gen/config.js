@@ -50,14 +50,15 @@ window.APP_CONFIG = {
   },
 
   syntaxLight: {
-    keyword:   '#0070c1',
-    type:      '#267f99',
-    comment:   '#008000',
-    string:    '#a31515',
-    number:    '#098658',
-    hwAddress: '#795e26',
-    attribute: '#af00db',
-    xmlTag:    '#800000',
+    // Paleta Xcode Light — diseñada por Apple para fondos blancos
+    keyword:   '#ad3da4',   // magenta/morado  — VAR, END_VAR, AT, IF, THEN
+    type:      '#3e8087',   // teal            — BOOL, INT, REAL, DINT
+    comment:   '#5d6c79',   // gris pizarra    — // comentarios  (* *)
+    string:    '#c41a16',   // rojo            — 'strings'
+    number:    '#1c00cf',   // azul profundo   — 0, 1, 3.14
+    hwAddress: '#836c28',   // dorado cálido   — %IX0.0  %QX0.1
+    attribute: '#643820',   // marrón          — {attribute '...'}
+    xmlTag:    '#0d68a8',   // azul            — <EventId>  <Name>
   },
 
 
@@ -98,29 +99,30 @@ window.APP_CONFIG = {
   //  Qué color tiene cada elemento del código generado
   // ════════════════════════════════════════════════════════════════════
   syntax: {
+    // Paleta Xcode Dark — diseñada por Apple para fondos negros
     // Palabras clave:  VAR  END_VAR  IF  THEN  FOR  AT  RETAIN …
-    keyword:   '#569cd6',
+    keyword:   '#fc5fa3',   // rosa Apple      — muy reconocible en Xcode
 
     // Tipos de datos:  BOOL  INT  REAL  DINT  STRING …
-    type:      '#4ec9b0',
+    type:      '#5dd8ff',   // cian claro      — armónico con el acento #38bdf8
 
     // Comentarios:  // esto es un comentario  y  (* también esto *)
-    comment:   '#6a9955',
+    comment:   '#6c7986',   // gris pizarra    — discreto, no distrae
 
     // Cadenas de texto:  'valor entre comillas'
-    string:    '#ce9178',
+    string:    '#fc6a5d',   // coral           — cálido, contraste suave
 
     // Números:  0   1   3.14   16#FF
-    number:    '#b5cea8',
+    number:    '#d9c97c',   // dorado cálido   — rompe el frío sin chirriar
 
     // Direcciones de hardware:  %IX0.0   %QX0.1   %IW2
-    hwAddress: '#dcdcaa',
+    hwAddress: '#a167e6',   // lavanda         — se distingue bien del resto
 
     // Atributos del compilador:  {attribute 'qualified_only'}
-    attribute: '#c586c0',
+    attribute: '#ffa14f',   // naranja suave   — visible sin saturar
 
     // Etiquetas XML  (sección Alarms.tmc):  <EventId>   <Name>
-    xmlTag:    '#4da6ff',
+    xmlTag:    '#67b7a4',   // teal apagado    — diferente al tipo, coherente
   },
 
 

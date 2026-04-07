@@ -103,6 +103,7 @@ window._IO_GEN_VUE_APP = createApp({
       const s = this.isDarkMode ? (_cfg.syntax     || {}) : (_cfg.syntaxLight || {});
       _applyThemeVars(t);
       _applySyntaxVars(s);
+      document.body.classList.toggle('dark-theme', this.isDarkMode);
       localStorage.setItem(THEME_STORAGE_KEY, this.isDarkMode ? 'dark' : 'light');
     },
 

@@ -5,7 +5,7 @@
 // ── Módulo de tema ───────────────────────────────────────────────────────────
 // Responsabilidad: detectar, aplicar y persistir la preferencia de tema.
 const ThemeManager = (() => {
-    const STORAGE_KEY = 'hub-theme';
+    const STORAGE_KEY = 'app-theme';   // clave compartida con todas las tools
     const DARK_CLASS  = 'dark-theme';
     const LIGHT_CLASS = 'light-theme';
 
@@ -18,7 +18,9 @@ const ThemeManager = (() => {
     //   3. Claro por defecto si nada de lo anterior aplica
     function detect() {
         const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored === DARK_CLASS || stored === LIGHT_CLASS) return stored;
+        // Acepta tanto 'dark' (formato IO Gen) como 'dark-theme' (formato Hub)
+        if (stored === 'dark' || stored === DARK_CLASS)  return DARK_CLASS;
+        if (stored === 'light' || stored === LIGHT_CLASS) return LIGHT_CLASS;
 
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
             return DARK_CLASS;
@@ -33,7 +35,8 @@ const ThemeManager = (() => {
     }
 
     function save(theme) {
-        localStorage.setItem(STORAGE_KEY, theme);
+        // Guarda en formato compartido 'dark'/'light' para que IO Gen lo entienda
+        localStorage.setItem(STORAGE_KEY, theme === DARK_CLASS ? 'dark' : 'light');
     }
 
     function isDark() {

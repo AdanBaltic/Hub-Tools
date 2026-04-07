@@ -8,7 +8,7 @@
 
 const _cfg = window.APP_CONFIG || {};
 
-const THEME_STORAGE_KEY = 'io-gen-theme';
+const THEME_STORAGE_KEY = 'app-theme';   // clave compartida con el Hub
 
 // Detecta el tema a usar:
 //   1. Override manual guardado por el usuario
@@ -76,6 +76,9 @@ function _applySyntaxVars(s) {
   _applySyntaxVars(isDark ? (_cfg.syntax      || {}) : (_cfg.syntaxLight || {}));
   _applyThemeVars (isDark ? (_cfg.theme       || {}) : (_cfg.themeLight  || {}));
 
+  // Aplica la clase CSS para que body.dark-theme { } funcione.
+  document.body.classList.toggle('dark-theme', isDark);
+
   // Expone el tema inicial para que app.js inicialice isDarkMode correctamente.
   window._IO_GEN_INITIAL_DARK = isDark;
 
@@ -94,6 +97,7 @@ function _applySyntaxVars(s) {
         const s = evt.matches ? (_cfg.syntax || {}) : (_cfg.syntaxLight || {});
         _applyThemeVars(t);
         _applySyntaxVars(s);
+        document.body.classList.toggle('dark-theme', evt.matches);
         // Notifica a Vue si ya está montado
         if (window._IO_GEN_VUE_APP) {
           window._IO_GEN_VUE_APP.isDarkMode = evt.matches;
