@@ -120,12 +120,6 @@
 						</div>
 					</div>
 
-					<div class="nav-divider"></div>
-
-					<div class="nav-pills-container">
-						<span class="pill">{{ usedSheetName || '-' }}</span>
-						<span class="pill" style="border-color: var(--accent-color);">I/Os: {{ controlCount || '-' }}</span>
-					</div>
 				</div>
 
 				<div class="nav-right">
@@ -157,6 +151,11 @@
 				</div>
 
 			</header>
+
+			<div class="status-bar">
+				<span class="pill">{{ usedSheetName || '—' }}</span>
+				<span class="pill pill-accent">I/Os: {{ controlCount || '—' }}</span>
+			</div>
 
 			<main class="content-area">
 
