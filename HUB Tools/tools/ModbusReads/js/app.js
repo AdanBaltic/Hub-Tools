@@ -4,6 +4,7 @@ window._MODBUS_VUE_APP = createApp({
   data() {
     return {
       isDarkMode: window._MODBUS_INITIAL_DARK ?? false,
+      activeTab: 'configuration',
 
       // Excel settings
       preferredSheetName: "IO-list",
@@ -60,6 +61,37 @@ window._MODBUS_VUE_APP = createApp({
     excelLoaded() {
       return Array.isArray(this.rows) && this.rows.length > 0;
     },
+
+    stDeclHtml()   { return this.highlightPLC(this.stDecl); },
+    stProgHtml()   { return this.highlightPLC(this.stProg); },
+    stVarMapHtml() { return this.highlightPLC(this.stVarMap); },
+
+    deviceErrors() {
+      const nameMap = new Map();
+      this.devices.forEach((dev) => {
+        const key = String(dev.name ?? '').trim().toLowerCase();
+        if (key) nameMap.set(key, (nameMap.get(key) || 0) + 1);
+      });
+
+      return this.devices.map((dev) => {
+        const nameKey = String(dev.name ?? '').trim().toLowerCase();
+        const slave   = this.toIntStrict(dev.slaveId);
+
+        return {
+          name:    !String(dev.name ?? '').trim() || (nameKey && (nameMap.get(nameKey) || 0) > 1),
+          ip:      !String(dev.ip ?? '').trim(),
+          slaveId: slave === null || slave < 0 || slave > 255,
+          readings: (dev.readings || []).map(rd => {
+            const adr = this.toIntStrict(rd.address);
+            const len = this.toIntStrict(rd.length);
+            return {
+              address: adr === null || adr < 0 || adr > 65535,
+              length:  len === null || len < 1  || len > 65535,
+            };
+          }),
+        };
+      });
+    },
   },
 
   methods: {
@@ -100,10 +132,29 @@ window._MODBUS_VUE_APP = createApp({
       return `sizeReg${devId}`;
     },
 
+    onExcelSettingChange() {
+      if (this.excelLoaded) this.rebuildFromRows();
+      else this.generate();
+    },
+
+    uniqueDeviceName(base, excludeIdx) {
+      const existing = new Set(
+        this.devices
+          .filter((_, i) => i !== excludeIdx)
+          .map(d => String(d.name ?? '').trim().toLowerCase())
+      );
+      if (!existing.has(base.toLowerCase())) return base;
+      for (let n = 0; ; n++) {
+        const candidate = `${base}_${n}`;
+        if (!existing.has(candidate.toLowerCase())) return candidate;
+      }
+    },
+
     addDevice() {
+      const base = "Device" + (this.devices.length + 1);
       this.devices.push({
         id: crypto.randomUUID(),
-        name: "Device" + (this.devices.length + 1),
+        name: this.uniqueDeviceName(base, null),
         ip: "",
         slaveId: "",
         dataType: "MW",
@@ -378,16 +429,16 @@ window._MODBUS_VUE_APP = createApp({
         const nReadName = this.autoNReadName(dev.name, dIdx);
         const sizeRegName = this.autoSizeRegName(dev.name, dIdx);
 
-        decl.push(`    // DATA ${dIdx + 1} - ${devId} unit`);
-        decl.push(`    ${nReadName} : INT := ${nRead};`);
-        decl.push(`    ${sizeRegName} : INT := ${sizeReg};`);
+        decl.push(`\t// DATA ${dIdx + 1} - ${devId} unit`);
+        decl.push(`\t${nReadName} : INT := ${nRead};`);
+        decl.push(`\t${sizeRegName} : INT := ${sizeReg};`);
         decl.push("");
       });
       decl.push("END_VAR");
       decl.push("");
 
       decl.push("VAR");
-      decl.push("    execute_read : BOOL;");
+      decl.push("\texecute_read : BOOL;");
       decl.push("");
 
       this.devices.forEach((dev, dIdx) => {
@@ -406,30 +457,30 @@ window._MODBUS_VUE_APP = createApp({
         const nReadName = this.autoNReadName(dev.name, dIdx);
         const sizeRegName = this.autoSizeRegName(dev.name, dIdx);
 
-        decl.push(`    // DATA ${dIdx + 1} - ${devId} unit`);
-        decl.push(`    ${fbName} : FB_Modbus_ReadDevice;`);
-        decl.push(`    ${adrName} : ARRAY [1..${nReadName}] OF ST_ModbusRead := [`);
+        decl.push(`\t// DATA ${dIdx + 1} - ${devId} unit`);
+        decl.push(`\t${fbName} : FB_Modbus_ReadDevice;`);
+        decl.push(`\t${adrName} : ARRAY [1..${nReadName}] OF ST_ModbusRead := [`);
 
         dev.readings.forEach((r, rIdx) => {
           const adr = this.toIntStrict(r.address);
           const len = this.toIntStrict(r.length);
           const comma = (rIdx < dev.readings.length - 1) ? "," : "";
-          decl.push(`        (Length := ${len}, Address := ${adr})${comma} //`);
+          decl.push(`\t\t(Length := ${len}, Address := ${adr})${comma} //`);
         });
 
-        decl.push("    ];");
-        decl.push(`    ${dataName} : ARRAY [1..${sizeRegName}] OF WORD;`);
+        decl.push("\t];");
+        decl.push(`\t${dataName} : ARRAY [1..${sizeRegName}] OF WORD;`);
         decl.push("");
 
         prog.push(`// Read ${devId}`);
         prog.push(`${fbName}(`);
-        prog.push(`    IPaddr    := '${ip}',`);
-        prog.push(`    slaveID   := ${slaveId},`);
-        prog.push(`    dataType  := ENUM_ModbusDataType.${dt},`);
-        prog.push(`    addresses := ${adrName},`);
-        prog.push(`    data      := ${dataName},`);
-        prog.push(`    execute   := execute_read`);
-        prog.push(");");
+        prog.push(`\tIPaddr    := '${ip}',`);
+        prog.push(`\tslaveID   := ${slaveId},`);
+        prog.push(`\tdataType  := ENUM_ModbusDataType.${dt},`);
+        prog.push(`\taddresses := ${adrName},`);
+        prog.push(`\tdata      := ${dataName},`);
+        prog.push(`\texecute   := execute_read`);
+        prog.push(").");
         prog.push("");
       });
 
@@ -706,6 +757,23 @@ window._MODBUS_VUE_APP = createApp({
       }
 
       newDevices.sort((a,b) => a.name.localeCompare(b.name));
+
+      // Deduplicate names: same name → suffix _0, _1, …
+      const nameCounts = new Map();
+      newDevices.forEach(d => {
+        const k = d.name.toLowerCase();
+        nameCounts.set(k, (nameCounts.get(k) || 0) + 1);
+      });
+      const nameIdx = new Map();
+      newDevices.forEach(d => {
+        const k = d.name.toLowerCase();
+        if ((nameCounts.get(k) || 0) > 1) {
+          const idx = nameIdx.get(k) ?? 0;
+          d.name = `${d.name}_${idx}`;
+          nameIdx.set(k, idx + 1);
+        }
+      });
+
       this.devices = (newDevices.length ? newDevices : this.devices);
     },
 
@@ -747,6 +815,121 @@ window._MODBUS_VUE_APP = createApp({
       this.isDarkMode = !this.isDarkMode;
       document.body.classList.toggle('dark-theme', this.isDarkMode);
       localStorage.setItem('app-theme', this.isDarkMode ? 'dark' : 'light');
+    },
+
+    // ── Syntax highlighter (PLC / Structured Text) ───────────────────
+    highlightPLC(raw) {
+      if (!raw) return '';
+
+      const KEYWORDS = new Set([
+        'VAR','VAR_GLOBAL','VAR_INPUT','VAR_OUTPUT','VAR_IN_OUT','VAR_TEMP','VAR_STAT',
+        'END_VAR','PROGRAM','FUNCTION','FUNCTION_BLOCK','END_PROGRAM','END_FUNCTION',
+        'END_FUNCTION_BLOCK','METHOD','END_METHOD','PROPERTY','END_PROPERTY',
+        'IF','THEN','ELSE','ELSIF','END_IF','FOR','TO','BY','DO','END_FOR',
+        'WHILE','END_WHILE','REPEAT','UNTIL','END_REPEAT','CASE','OF','END_CASE',
+        'RETURN','EXIT','NOT','AND','OR','XOR','MOD','TRUE','FALSE',
+        'AT','RETAIN','PERSISTENT','CONSTANT','TYPE','END_TYPE',
+        'STRUCT','END_STRUCT','UNION','END_UNION','ARRAY','POINTER','REF_TO',
+        'INTERFACE','END_INTERFACE','EXTENDS','IMPLEMENTS',
+        'PUBLIC','PRIVATE','PROTECTED','INTERNAL','ABSTRACT','FINAL',
+        'THIS','SUPER','NEW','DELETE','SHL','SHR','TO_INT','TO_UINT','TO_DINT',
+        'TO_UDINT','TO_REAL','TO_BYTE','TO_WORD','TO_DWORD','TO_SINT','TO_USINT'
+      ]);
+
+      const TYPES = new Set([
+        'BOOL','BYTE','WORD','DWORD','LWORD',
+        'SINT','USINT','INT','UINT','DINT','UDINT','LINT','ULINT',
+        'REAL','LREAL','TIME','DATE','DT','TOD','STRING','WSTRING',
+        'ANY','ANY_INT','ANY_REAL','ANY_NUM','ANY_BIT','ANY_DATE',
+        'ANY_ELEMENTARY','ANY_DERIVED','PVOID','XINT','UXINT'
+      ]);
+
+      let out = '';
+      let i = 0;
+      const len = raw.length;
+
+      const esc  = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const span = (cls, text) => `<span class="${cls}">${esc(text)}</span>`;
+
+      while (i < len) {
+        const ch  = raw[i];
+        const ch2 = raw[i + 1] || '';
+
+        // Block comment (* ... *)
+        if (ch === '(' && ch2 === '*') {
+          const end   = raw.indexOf('*)', i + 2);
+          const chunk = end === -1 ? raw.slice(i) : raw.slice(i, end + 2);
+          out += span('plc-comment', chunk);
+          i += chunk.length;
+          continue;
+        }
+
+        // Line comment //
+        if (ch === '/' && ch2 === '/') {
+          const end   = raw.indexOf('\n', i);
+          const chunk = end === -1 ? raw.slice(i) : raw.slice(i, end);
+          out += span('plc-comment', chunk);
+          i += chunk.length;
+          continue;
+        }
+
+        // Single-quoted string 'x'
+        if (ch === "'") {
+          let j = i + 1;
+          while (j < len && raw[j] !== "'" && raw[j] !== '\n') j++;
+          if (raw[j] === "'") j++;
+          out += span('plc-string', raw.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Hardware address  %IX0.0  %QX0.0  %MW1
+        if (ch === '%') {
+          let j = i + 1;
+          while (j < len && /[\w.]/.test(raw[j])) j++;
+          out += span('plc-hwaddr', raw.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Pragma / attribute  {attribute 'x'}
+        if (ch === '{') {
+          const end   = raw.indexOf('}', i);
+          const chunk = end === -1 ? raw.slice(i) : raw.slice(i, end + 1);
+          out += span('plc-attr', chunk);
+          i += chunk.length;
+          continue;
+        }
+
+        // Number (digit at word boundary)
+        if (/[0-9]/.test(ch) && (i === 0 || /\W/.test(raw[i - 1]))) {
+          let j = i;
+          while (j < len && /[0-9_.#EeXx]/.test(raw[j])) j++;
+          out += span('plc-number', raw.slice(i, j));
+          i = j;
+          continue;
+        }
+
+        // Identifier → keyword / type / plain
+        if (/[A-Za-z_]/.test(ch)) {
+          let j = i;
+          while (j < len && /[\w]/.test(raw[j])) j++;
+          const word  = raw.slice(i, j);
+          const upper = word.toUpperCase();
+          if (KEYWORDS.has(upper))   out += span('plc-kw',   word);
+          else if (TYPES.has(upper)) out += span('plc-type', word);
+          else                       out += esc(word);
+          i = j;
+          continue;
+        }
+
+        out += esc(ch);
+        i++;
+      }
+
+      return out.split('\n')
+        .map(l => `<span class="line">${l}</span>`)
+        .join('');
     },
 
     onFile(e) {

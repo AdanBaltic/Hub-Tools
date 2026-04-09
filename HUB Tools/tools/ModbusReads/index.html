@@ -51,180 +51,217 @@
   <!-- ── CONTENIDO ── -->
   <div class="app-content">
 
-    <!-- Status pills -->
-    <div class="status-bar">
-      <label class="file-input-label">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Subir Excel
-        <input type="file" @change="onFile" accept=".xlsx,.xls,.xlsm" style="display:none" />
-      </label>
-      <span class="pill">Sheet: {{ usedSheetName || '—' }}</span>
-      <span class="pill pill-accent">Devices: {{ devices.length }}</span>
-      <span class="pill" @click="showRoots = !showRoots" style="cursor:pointer;">
-        Roots: {{ rootsCount }} {{ showRoots ? '▾' : '▸' }}
-      </span>
-      <div v-if="showRoots && rootsList.length" class="roots-list">
-        <span v-for="root in rootsList" :key="root" class="pill">{{ root }}</span>
+    <!-- ── TAB BAR ── -->
+    <div class="tab-bar">
+      <div class="tab-segment">
+        <button class="tab-btn" :class="{ active: activeTab === 'configuration' }" @click="activeTab = 'configuration'">
+          Configuration
+        </button>
+        <button class="tab-btn" :class="{ active: activeTab === 'output' }" @click="activeTab = 'output'">
+          Output
+        </button>
+      </div>
+      <div class="tab-meta">
+        <label class="file-input-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Excel
+          <input type="file" @change="onFile" @click="$event.target.value = null" accept=".xlsx,.xls,.xlsm" style="display:none" />
+        </label>
+        <span class="meta-pill meta-pill-accent">Devices: {{ devices.length }}</span>
+        <span class="meta-pill meta-pill-sheet" v-if="usedSheetName">
+          {{ usedSheetName }}
+          <button class="pill-close" @click="clearExcel" title="Detach Excel">✕</button>
+        </span>
+        <span class="meta-pill meta-pill-clickable" @click="showRoots = !showRoots">
+          Roots: {{ rootsCount }}&nbsp;{{ showRoots ? '▾' : '▸' }}
+        </span>
       </div>
     </div>
 
-    <!-- ── COLUMNA IZQUIERDA: Configuración ── -->
-    <div>
+    <div v-if="showRoots && rootsList.length" class="roots-list">
+      <span v-for="root in rootsList" :key="root" class="meta-pill">{{ root }}</span>
+    </div>
 
-      <!-- Panel principal -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title">Configuration</span>
-          <div class="btn-group">
-            <button class="btn btn-primary" @click="addDevice">+ Add device</button>
-            <button class="btn" @click="generate">Generate</button>
-            <button class="btn btn-danger" @click="resetAll">Reset</button>
+    <!-- ══════════════════════════════════════
+         TAB: CONFIGURATION
+         ══════════════════════════════════════ -->
+    <div v-show="activeTab === 'configuration'" class="tab-config">
+
+      <!-- Top 2-col: Excel Settings + Debug -->
+      <div class="config-top">
+
+        <!-- Excel Settings -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Excel Settings</span>
           </div>
-        </div>
-
-        <div class="panel-body">
-          <div style="display:flex; justify-content:flex-end; gap:6px; margin-bottom:0.75rem;">
-            <button class="btn" @click="rebuildFromRows" :disabled="rows.length===0">Rebuild from Excel</button>
-            <button class="btn btn-danger" @click="clearExcel" :disabled="rows.length===0">Clear Excel</button>
-          </div>
-
-          <fieldset class="excel-section" :disabled="!excelLoaded">
-            <legend class="excel-legend">Excel settings <span v-if="!excelLoaded" style="font-weight:400; text-transform:none;">(load a file first)</span></legend>
+          <div class="panel-body">
             <div class="grid-4">
               <div>
                 <label class="form-label">Header row</label>
-                <input class="form-input" v-model.number="headerRowNumber" type="number" min="1" />
+                <input class="form-input" v-model.number="headerRowNumber" type="number" min="1" @change="onExcelSettingChange()" />
               </div>
               <div>
                 <label class="form-label">Sheet name</label>
-                <input class="form-input" v-model="preferredSheetName" placeholder="IO-list" />
+                <input class="form-input" v-model="preferredSheetName" placeholder="IO-list" @change="generate()" />
               </div>
               <div>
                 <label class="form-label">Holding base</label>
-                <select class="form-select" v-model.number="holdingBase">
+                <select class="form-select" v-model.number="holdingBase" @change="onExcelSettingChange()">
                   <option :value="40001">40001</option>
                   <option :value="40000">40000</option>
                 </select>
               </div>
               <div>
                 <label class="form-label">Max regs/read</label>
-                <input class="form-input" v-model.number="maxRegsPerRead" type="number" min="1" max="125" />
+                <input class="form-input" v-model.number="maxRegsPerRead" type="number" min="1" max="125" @change="onExcelSettingChange()" />
               </div>
             </div>
             <div class="grid-2" style="margin-top:8px;">
               <div>
                 <label class="form-label">Max gap (regs)</label>
-                <input class="form-input" v-model.number="maxGapRegs" type="number" min="0" />
+                <input class="form-input" v-model.number="maxGapRegs" type="number" min="0" @change="onExcelSettingChange()" />
               </div>
               <div>
                 <label class="form-label">Max waste (%)</label>
-                <input class="form-input" v-model.number="maxWastePct" type="number" min="0" max="100" />
-              </div>
-            </div>
-          </fieldset>
-
-          <!-- Device cards -->
-          <div v-for="(dev, dIdx) in devices" :key="dev.id" class="device-card">
-            <div class="device-top">
-              <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                <span class="pill">Device #{{ dIdx + 1 }}</span>
-                <strong style="font-size:0.875rem;">{{ dev.name || '(unnamed)' }}</strong>
-              </div>
-              <button class="btn btn-danger" @click="removeDevice(dIdx)" :disabled="devices.length === 1">Remove</button>
-            </div>
-
-            <div class="device-meta" v-if="dev.points && dev.points.length">
-              {{ dev.points.length }} tags · Regs {{ dev.points[0].start }}–{{ dev.points[dev.points.length - 1].end }}
-            </div>
-
-            <div class="grid-4">
-              <div>
-                <label class="form-label">Device name</label>
-                <input class="form-input" v-model="dev.name" placeholder="Shore, ME…" />
-              </div>
-              <div>
-                <label class="form-label">IP address</label>
-                <input class="form-input" v-model="dev.ip" placeholder="192.168.1.73" />
-              </div>
-              <div>
-                <label class="form-label">Slave ID</label>
-                <input class="form-input" v-model="dev.slaveId" type="number" min="0" max="255" />
-              </div>
-              <div>
-                <label class="form-label">Data type</label>
-                <select class="form-select" v-model="dev.dataType">
-                  <option value="C">C</option>
-                  <option value="I">I</option>
-                  <option value="IW">IW</option>
-                  <option value="MW">MW</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div style="margin-bottom:0.5rem;">
-              <button class="btn btn-primary" @click="addReading(dIdx)">+ Add reading</button>
-            </div>
-
-            <div class="readings-box">
-              <div class="readings-header">
-                <span></span>
-                <span>Start address</span>
-                <span>Length (regs)</span>
-                <span></span>
-              </div>
-              <div v-for="(rd, rIdx) in dev.readings" :key="rd.id" class="reading-row">
-                <span class="reading-label">Reading #{{ rIdx + 1 }}</span>
-                <input class="form-input" v-model="rd.address" type="number" min="0" max="65535" />
-                <input class="form-input" v-model="rd.length" type="number" min="1" max="65535" />
-                <div class="reading-actions">
-                  <button v-if="rIdx > 0" class="btn btn-danger" @click="removeReading(dIdx, rIdx)">✕</button>
-                </div>
+                <input class="form-input" v-model.number="maxWastePct" type="number" min="0" max="100" @change="onExcelSettingChange()" />
               </div>
             </div>
           </div>
         </div>
+
+        <!-- Debug -->
+        <div class="panel debug-panel">
+          <div class="panel-header">
+            <span class="panel-title">Debug</span>
+            <button class="btn" @click="copyText(debug, 'Debug')">Copy</button>
+          </div>
+          <pre class="debug-pre">{{ debug }}</pre>
+        </div>
+
       </div>
 
-      <!-- Debug -->
-      <div class="panel" style="margin-top:1rem;">
-        <div class="panel-header">
-          <span class="panel-title">Debug</span>
-          <button class="btn" @click="copyText(debug, 'Debug')">Copy</button>
+      <!-- Devices action bar -->
+      <div class="devices-bar">
+        <span class="devices-bar-title">Devices</span>
+        <div class="btn-group">
+          <button class="btn btn-primary" @click="addDevice">+ Add device</button>
+          <button class="btn btn-danger" @click="resetAll">Clear all</button>
         </div>
-        <pre class="debug-pre">{{ debug }}</pre>
+      </div>
+
+      <!-- Device cards — full width -->
+      <div class="devices-list">
+        <div v-for="(dev, dIdx) in devices" :key="dev.id" class="device-card">
+
+          <div class="device-top">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span class="device-index">#{{ dIdx + 1 }}</span>
+              <strong style="font-size:0.875rem;">{{ dev.name || '(unnamed)' }}</strong>
+              <span v-if="dev.points && dev.points.length" class="device-meta">
+                {{ dev.points.length }} tags &middot; Regs {{ dev.points[0].start }}–{{ dev.points[dev.points.length - 1].end }}
+              </span>
+            </div>
+            <button class="btn btn-danger" @click="removeDevice(dIdx)" :disabled="devices.length === 1">Remove</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="grid-5">
+            <div>
+              <label class="form-label">Device name</label>
+              <input class="form-input" :class="{ 'field-error': deviceErrors[dIdx]?.name }" v-model="dev.name" placeholder="Shore, ME…" @change="generate()" />
+            </div>
+            <div>
+              <label class="form-label">IP address</label>
+              <input class="form-input" :class="{ 'field-error': deviceErrors[dIdx]?.ip }" v-model="dev.ip" placeholder="192.168.1.73" @change="generate()" />
+            </div>
+            <div>
+              <label class="form-label">Slave ID</label>
+              <input class="form-input" :class="{ 'field-error': deviceErrors[dIdx]?.slaveId }" v-model="dev.slaveId" type="number" min="0" max="255" @change="generate()" />
+            </div>
+            <div>
+              <label class="form-label">Data type</label>
+              <select class="form-select" v-model="dev.dataType" @change="generate()">
+                <option value="C">C</option>
+                <option value="I">I</option>
+                <option value="IW">IW</option>
+                <option value="MW">MW</option>
+              </select>
+            </div>
+            <div style="display:flex; align-items:flex-end;">
+              <button class="btn btn-primary" style="width:100%;" @click="addReading(dIdx)">+ Add reading</button>
+            </div>
+          </div>
+
+          <div class="readings-box">
+            <div class="readings-header">
+              <span></span>
+              <span>Start address</span>
+              <span>Length (regs)</span>
+              <span></span>
+            </div>
+            <div v-for="(rd, rIdx) in dev.readings" :key="rd.id" class="reading-row">
+              <span class="reading-label">Reading #{{ rIdx + 1 }}</span>
+              <input class="form-input" :class="{ 'field-error': deviceErrors[dIdx]?.readings[rIdx]?.address }" v-model="rd.address" type="number" min="0" max="65535" @change="generate()" />
+              <input class="form-input" :class="{ 'field-error': deviceErrors[dIdx]?.readings[rIdx]?.length }" v-model="rd.length" type="number" min="1" max="65535" @change="generate()" />
+              <div class="reading-actions">
+                <button v-if="rIdx > 0" class="btn btn-danger" @click="removeReading(dIdx, rIdx)">✕</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </div>
 
     </div>
 
-    <!-- ── COLUMNA DERECHA: Outputs ── -->
-    <div class="outputs-grid">
+    <!-- ══════════════════════════════════════
+         TAB: OUTPUT
+         ══════════════════════════════════════ -->
+    <div v-show="activeTab === 'output'" class="tab-output">
+      <div class="output-grid">
 
-      <div class="code-window">
-        <div class="window-bar">
-          <span class="window-title">Declarations <span class="window-sub">VAR / VAR CONSTANT</span></span>
-          <button class="btn" @click="copyText(stDecl, 'Declarations')">Copy</button>
+        <div class="code-window">
+          <div class="window-bar">
+            <div>
+              <span class="window-title">Declarations</span>
+              <span class="window-sub">VAR / VAR CONSTANT</span>
+            </div>
+            <button class="btn" @click="copyText(stDecl, 'Declarations')">Copy</button>
+          </div>
+          <div class="code-viewer" :class="{ empty: !stDecl }">
+            <pre class="code-pre" v-html="stDeclHtml || '<span class=&quot;line plc-placeholder&quot;>// Generate code first</span>'"></pre>
+          </div>
         </div>
-        <textarea class="code-textarea" v-model="stDecl" rows="18" readonly></textarea>
-      </div>
 
-      <div class="code-window">
-        <div class="window-bar">
-          <span class="window-title">Program <span class="window-sub">FB_Modbus_ReadDevice</span></span>
-          <button class="btn" @click="copyText(stProg, 'Program')">Copy</button>
+        <div class="code-window">
+          <div class="window-bar">
+            <div>
+              <span class="window-title">Program</span>
+              <span class="window-sub">FB_Modbus_ReadDevice</span>
+            </div>
+            <button class="btn" @click="copyText(stProg, 'Program')">Copy</button>
+          </div>
+          <div class="code-viewer" :class="{ empty: !stProg }">
+            <pre class="code-pre" v-html="stProgHtml || '<span class=&quot;line plc-placeholder&quot;>// Generate code first</span>'"></pre>
+          </div>
         </div>
-        <textarea class="code-textarea" v-model="stProg" rows="14" readonly></textarea>
-      </div>
 
-      <div class="code-window">
-        <div class="window-bar">
-          <span class="window-title">VariableMapping <span class="window-sub">Program</span></span>
-          <button class="btn" @click="copyText(stVarMap, 'VariableMapping')">Copy</button>
+        <div class="code-window">
+          <div class="window-bar">
+            <div>
+              <span class="window-title">VariableMapping</span>
+              <span class="window-sub">Program</span>
+            </div>
+            <button class="btn" @click="copyText(stVarMap, 'VariableMapping')">Copy</button>
+          </div>
+          <div class="code-viewer" :class="{ empty: !stVarMap }">
+            <pre class="code-pre" v-html="stVarMapHtml || '<span class=&quot;line plc-placeholder&quot;>// Generate code first</span>'"></pre>
+          </div>
         </div>
-        <textarea class="code-textarea" v-model="stVarMap" rows="14" readonly></textarea>
-      </div>
 
+      </div>
     </div>
 
   </div>
