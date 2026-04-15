@@ -165,11 +165,15 @@ const plcHelpers = {
         continue;
       }
 
-      // Pragma / attribute  {attribute 'x'}
+      // Pragma / attribute  {attribute 'x'}  or  {region 'x'} / {endregion}
       if (ch === '{') {
         const end   = raw.indexOf('}', i);
         const chunk = end === -1 ? raw.slice(i) : raw.slice(i, end + 1);
-        out += span('plc-attr', chunk);
+        const lower = chunk.toLowerCase();
+        const cls   = (lower.startsWith('{region') || lower.startsWith('{endregion'))
+                      ? 'plc-region'
+                      : 'plc-attr';
+        out += span(cls, chunk);
         i += chunk.length;
         continue;
       }

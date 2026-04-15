@@ -62,6 +62,7 @@ function _applySyntaxVars(s) {
   set('--plc-number',  s.number);
   set('--plc-hwaddr',  s.hwAddress);
   set('--plc-attr',    s.attribute);
+  set('--plc-region',  s.region);
   set('--plc-xmltag',  s.xmlTag);
 }
 

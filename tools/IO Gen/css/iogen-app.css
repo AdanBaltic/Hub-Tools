@@ -501,6 +501,7 @@ body {
 .plc-number  { color: var(--plc-number);  }
 .plc-hwaddr  { color: var(--plc-hwaddr);  font-weight: 600; }
 .plc-attr    { color: var(--plc-attr);    }
+.plc-region  { color: var(--plc-region);  font-style: italic; }
 .plc-xmltag  { color: var(--plc-xmltag);  }
 
 /* ══════════════════════════════════════════════════════════════════════

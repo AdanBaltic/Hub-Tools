@@ -58,6 +58,7 @@ window.APP_CONFIG = {
     number:    '#1c00cf',   // azul profundo   — 0, 1, 3.14
     hwAddress: '#836c28',   // dorado cálido   — %IX0.0  %QX0.1
     attribute: '#643820',   // marrón          — {attribute '...'}
+    region:    '#2e6b3e',   // verde oscuro    — {region '...'}
     xmlTag:    '#0d68a8',   // azul            — <EventId>  <Name>
   },
 
@@ -120,6 +121,9 @@ window.APP_CONFIG = {
 
     // Atributos del compilador:  {attribute 'qualified_only'}
     attribute: '#ffa14f',   // naranja suave   — visible sin saturar
+
+    // Región de código:  {region 'nombre'}   {endregion}
+    region:    '#5fba7d',   // verde menta     — diferente al attribute, fresco
 
     // Etiquetas XML  (sección Alarms.tmc):  <EventId>   <Name>
     xmlTag:    '#67b7a4',   // teal apagado    — diferente al tipo, coherente
