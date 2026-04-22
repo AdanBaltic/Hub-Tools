@@ -120,10 +120,10 @@ window.APP_CONFIG = {
     hwAddress: '#a167e6',   // lavanda         — se distingue bien del resto
 
     // Atributos del compilador:  {attribute 'qualified_only'}
-    attribute: '#ffa14f',   // naranja suave   — visible sin saturar
+    attribute: '#6c7986',   // gris pizarra   — discreto, no distrae
 
     // Región de código:  {region 'nombre'}   {endregion}
-    region:    '#5fba7d',   // verde menta     — diferente al attribute, fresco
+    region:    '#ffa14f',   // naranja suave     — diferente al attribute, fresco
 
     // Etiquetas XML  (sección Alarms.tmc):  <EventId>   <Name>
     xmlTag:    '#67b7a4',   // teal apagado    — diferente al tipo, coherente

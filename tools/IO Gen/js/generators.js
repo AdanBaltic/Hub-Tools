@@ -51,6 +51,7 @@ const generators = {
 
     this._buildIOTagsAndGVL(dataRows, col, startDataIndex);
     this._buildAlarmOutputs(dataRows, col, startDataIndex);
+	this._buildIOTestOutputs(dataRows, col, startDataIndex);
 
     this.debug =
       `Data start row: ${startDataIndex + 1}\n` +
@@ -121,7 +122,16 @@ const generators = {
 
       const hmiCell = (idxHMI !== undefined) ? this.toStrTrim(r[idxHMI]) : '';
       const isHmi   = (hmiCell.trim().toLowerCase() === 'x');
-
+	  
+	  const tag = this.toStrTrim(r[idxNAME]);
+	  const hwDecl        = (idxHardwareDecl !== undefined) ? this.toStrTrim(r[idxHardwareDecl]) : '';
+	  const comment       = (idxComment      !== undefined) ? this.toStrTrim(r[idxComment])      : '';
+	  const commentSuffix = comment ? ` // ${comment}` : '';
+	
+	  // GVL: tipo 
+      const typeRaw     = (idxTYPE     !== undefined) ? this.toStrTrim(r[idxTYPE])     : '';
+      const gvlType     = normalizeGvlType(typeRaw);
+	  
       // Recopilar SubSystem de TODAS las filas (no solo Control/HMI)
       const subSystemRaw = (idxSubSystem !== undefined) ? this.toStrTrim(r[idxSubSystem]) : '';
       if (subSystemRaw) {
@@ -129,48 +139,9 @@ const generators = {
         if (!subSystemMap.has(varName)) subSystemMap.set(varName, subSystemRaw);
       }
 
-      // Solo procesar filas Control o HMI
-      if (!isControl && !isHmi) continue;
-      if (isControl) controlCount++;
-
-      const tag = this.toStrTrim(r[idxNAME]);
-      if (!tag) continue;
-
-      // Ignorar tags de reserva
-      const tagLower = tag.toLowerCase();
-      if (tagLower === 'spare_di' || tagLower === 'spare_do' || tagLower === 'spare_ai' || tagLower === 'spare_ao') continue;
-
-      // Determinar declaración AT según sufijo del tag
-      let atDecl = '';
-      if      (tag.endsWith('_DI')) atDecl = 'AT %I* : BOOL';
-      else if (tag.endsWith('_DO')) atDecl = 'AT %Q* : BOOL';
-      else if (tag.endsWith('_AI')) atDecl = 'AT %I* : INT';
-      else if (tag.endsWith('_AO')) atDecl = 'AT %Q* : INT';
-
-      const hwDecl        = (idxHardwareDecl !== undefined) ? this.toStrTrim(r[idxHardwareDecl]) : '';
-      const comment       = (idxComment      !== undefined) ? this.toStrTrim(r[idxComment])      : '';
-      const commentSuffix = comment ? ` // ${comment}` : '';
-
-      // Declaración base de IO_Tags
-      if (hwDecl) ioTagDeclLines.push(hwDecl);
-      ioTagDeclLines.push(`${tag} ${atDecl};${commentSuffix}`);
-
-      // Declaraciones HMI (solo filas HMI que no son también Control)
-      if (isHmi && !isControl) {
-        const stVar = `st_${tag}`;
-
-        const rawZero    = this.fmtNumberOrRaw((idxRawZero    !== undefined) ? r[idxRawZero]    : null, 0);
-        const rawFull    = this.fmtNumberOrRaw((idxRawFull    !== undefined) ? r[idxRawFull]    : null, 0);
-        const scaledZero = this.fmtNumberOrRaw((idxScaledZero !== undefined) ? r[idxScaledZero] : null, 0);
-        const scaledFull = this.fmtNumberOrRaw((idxScaledFull !== undefined) ? r[idxScaledFull] : null, 0);
-
-        stAiDeclLines.push(`${stVar}: ST_AI := (RawZero:=${rawZero}, RawFull:=${rawFull}, ScaledZero:=${scaledZero}, ScaledFull:=${scaledFull});`);
-        scalingLines.push(`${stVar}.Raw := ${tag}; ${stVar}.Scaled := FAiScale(${stVar});`);
-
-        // GVL: tipo y localización
-        const typeRaw     = (idxTYPE     !== undefined) ? this.toStrTrim(r[idxTYPE])     : '';
-        const gvlType     = normalizeGvlType(typeRaw);
-
+	  // Declaraciones GVL  
+	  if (!isControl) {		
+		// GVL: localización
         const locationRaw   = (idxLocation !== undefined) ? this.toStrTrim(r[idxLocation]) : '';
         const locationLower = locationRaw.toLowerCase();
         const isModbusTCP   = locationLower.includes('modbustcp');
@@ -178,15 +149,52 @@ const generators = {
 
         if (!gvlType) {
           const excelRow = startDataIndex + 1 + i;
-          gvlErrors.push(`Row ${excelRow}: invalid TYPE '${typeRaw}' for HMI tag '${tag}'`);
+          gvlErrors.push(`Row ${excelRow}: invalid TYPE '${typeRaw}' for tag '${tag}'`);
         } else {
           const cmt = comment || '';
           if (isModbusTCP) gvlLinesModbusTCP.push(`${tag}: ${gvlType} ;       //${cmt}`);
-          if (isModbus)    gvlLinesModbus.push(`${tag}: ${gvlType} ;       //${cmt}`);
+          else if (isModbus)    gvlLinesModbus.push(`${tag}: ${gvlType} ;       //${cmt}`);
           else             gvlLines.push(`${tag}: ${gvlType} ;       //${cmt}`);
         }
       }
+	  
+      // Solo procesar filas Control o HMI
+      if (!isControl && !isHmi) continue;
+	  if (isControl) {
+		  if (!tag) continue;
+		  controlCount++;
+			
+		  // Ignorar tags de reserva
+		  const tagLower = tag.toLowerCase();
+		  if (tagLower === 'spare_di' || tagLower === 'spare_do' || tagLower === 'spare_ai' || tagLower === 'spare_ao') continue;
 
+		  // Determinar declaración AT según sufijo del tag
+		  let atDecl = '';
+		  if      (tag.endsWith('_DI')) atDecl = 'AT %I* : BOOL';
+		  else if (tag.endsWith('_DO')) atDecl = 'AT %Q* : BOOL';
+		  else if (tag.endsWith('_AI')) atDecl = 'AT %I* : INT';
+		  else if (tag.endsWith('_AO')) atDecl = 'AT %Q* : INT';
+
+		  // Declaración base de IO_Tags
+		  if (hwDecl) ioTagDeclLines.push(hwDecl);
+		  ioTagDeclLines.push(`${tag} ${atDecl};${commentSuffix}`);
+		}
+      
+	  // Declaraciones HMI + Control
+      if (isHmi && isControl) {
+        	
+		if (typeRaw.toLowerCase() === 'digital') continue;
+		
+		const stVar = `st_${tag}`;
+        const rawZero    = this.fmtNumberOrRaw((idxRawZero    !== undefined) ? r[idxRawZero]    : null, 0);
+        const rawFull    = this.fmtNumberOrRaw((idxRawFull    !== undefined) ? r[idxRawFull]    : null, 0);
+        const scaledZero = this.fmtNumberOrRaw((idxScaledZero !== undefined) ? r[idxScaledZero] : null, 0);
+        const scaledFull = this.fmtNumberOrRaw((idxScaledFull !== undefined) ? r[idxScaledFull] : null, 0);
+
+        stAiDeclLines.push(`${stVar}: ST_AI := (RawZero:=${rawZero}, RawFull:=${rawFull}, ScaledZero:=${scaledZero}, ScaledFull:=${scaledFull});`);
+        scalingLines.push(`${stVar}.Raw := ${tag}; ${stVar}.Scaled := FAiScale(${stVar});`);
+	  }
+	  
       producedTags.add(tag);
       this.controlCount = controlCount;
     }
@@ -651,4 +659,84 @@ END_IF`.trim() + '\n';
       this.tplTmcFooter;
   },
 
+  // ════════════════════════════════════════════════════════
+  // 
+  // 
+  //
+  // 
+  // 
+  // 
+  // 
+  // ════════════════════════════════════════════════════════
+  _buildIOTestOutputs(dataRows, col, startDataIndex) {
+  const idxNAME = col['name'];
+  const idxSubSystem = col['sub system'];
+  
+  const ioRows = [];
+  const ioDecls = [];
+  const ioProgram = [];
+  const ioTmcEvents = [];
+  
+  const xmlEscapeAttr = (s) => this.xmlEscape(s ?? '').replace(/\\"/g, '"');
+  const tmcEvent = (eventName, displayName, systemValue) => {
+  const disp = String(displayName ?? '').trim();
+  const sys = this.xmlEscape(String(systemValue ?? '').trim());
+  return (` 
+  ${eventName}
+  
+  Message
+  
+  Info
+  
+  System
+  ${sys}
+  
+  `);
+  };
+  
+  for (const [i, r] of dataRows.entries()) {
+  const tag = this.toStrTrim(r[idxNAME]);
+  if (!tag) continue;
+  
+  if (!(tag.endsWith('_DI') || tag.endsWith('_DO'))) continue;
+  
+  const subSystemRaw = (idxSubSystem !== undefined) ? this.toStrTrim(r[idxSubSystem]) : '';
+  const subSystemExpr = subSystemRaw ? `SubSystem_${this.toIdentifier(subSystemRaw)}` : '0';
+  
+  const eventRise = `${tag}_rise`;
+  const eventFall = `${tag}_fall`;
+  const fbName = `fb_${tag}`;
+  
+  ioRows.push({ tag, fbName, eventRise, eventFall, subSystemRaw, subSystemExpr });
+  
+  ioDecls.push(`${fbName}: FB_IO_Test;`);
+  ioDecls.push(`${eventRise}: TcEventEntry;`);
+  ioDecls.push(`${eventFall}: TcEventEntry;`);
+  
+  ioProgram.push(
+  `${fbName}(bSignal := ${tag}, bEnable := bEnable, Subsystem := ${subSystemExpr}, stEventEntryOn := ${eventRise}, stEventEntryOff := ${eventFall});`
+  );
+  
+  ioTmcEvents.push(tmcEvent(eventRise, eventRise, subSystemRaw));
+  ioTmcEvents.push(tmcEvent(eventFall, eventFall, subSystemRaw));
+  }
+  
+  this.ioTestDeclaration =
+  `PROGRAM IO_Test
+  VAR
+  \tbEnable: BOOL := TRUE;
+  ${this.alignDecls(ioDecls.map(x => `\t${x}`)).join('\n')}
+  END_VAR`.trim() + '\n';
+  
+  this.ioTestProgram = ioProgram.join('\n').trim();
+  
+  this.ioTestText =
+  `${this.ioTestDeclaration}
+  ${this.ioTestProgram ? '\n\n' + this.ioTestProgram : ''}`.trim() + '\n';
+  
+  this.ioTestTmcText =
+  (this.tplTmcHeader || '') +
+  ioTmcEvents.join('\n') + '\n' +
+  (this.tplTmcFooter || '');
+  }
 };
