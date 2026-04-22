@@ -12,7 +12,7 @@ window._MODBUS_VUE_APP = createApp({
       headerRowNumber: 10,
 
       // Modbus addressing + packing rules
-      holdingBase: 40001,
+      modbusIndexBase: 1,
       maxRegsPerRead: 125,
       maxGapRegs: 5,
       maxWastePct: 25,
@@ -211,136 +211,259 @@ window._MODBUS_VUE_APP = createApp({
     },
 
     parseModbusCell(cell) {
-      const s0 = String(cell ?? "").trim();
-      if (!s0) return null;
+		const raw = String(cell ?? "").trim();
+		if (!raw) return null;
 
-      let s = s0;
-      let bit = null;
-      if (s.includes(".")) {
-        const [a, b] = s.split(".");
-        s = a;
-        const bn = Number(b);
-        if (Number.isFinite(bn) && bn >= 0 && bn <= 15) bit = Math.trunc(bn);
-      }
+		const m = raw.match(/^(\d{5,6})(?:[.,](\d+))?$/);
+		if (!m) return null;
 
-      const digits = String(s).replace(/[^\d]/g, "");
-      if (!digits) return null;
+		const logicalAddress = m[1];
+		const bitText = m[2] ?? null;
+		const areaPrefix = logicalAddress[0];
+		const digitsMode = logicalAddress.length;
+		const pointDigits = logicalAddress.slice(1);
 
-      let offset = null;
+		let area = null;
+		let objectKind = null;
+		let dataType = null;
 
-      if (digits.startsWith("4") && digits.length >= 2) {
-        const rest = digits.slice(1);
-        const regNum = Number(rest);
-        if (!Number.isFinite(regNum)) return null;
+		if (areaPrefix === "0") {
+		area = "coil";
+		objectKind = "bit";
+		dataType = "MX";
+		} else if (areaPrefix === "1") {
+		area = "discreteInput";
+		objectKind = "bit";
+		dataType = "IX";
+		} else if (areaPrefix === "3") {
+		area = "inputRegister";
+		objectKind = "word";
+		dataType = "IW";
+		} else if (areaPrefix === "4") {
+		area = "holdingRegister";
+		objectKind = "word";
+		dataType = "MW";
+		} else {
+		return null;
+		}
 
-        const baseRegNum = Number(String(this.holdingBase).replace(/[^\d]/g, "").slice(1));
-        offset = Math.trunc(regNum - baseRegNum);
-      } else {
-        offset = Math.trunc(Number(digits));
-      }
+		if (!/^\d+$/.test(pointDigits)) return null;
+		const visibleIndex = Number(pointDigits);
+		if (!Number.isInteger(visibleIndex)) return null;
 
-      if (!Number.isFinite(offset) || offset < 0 || offset > 65535) return null;
+		let minVisibleIndex;
+		let maxVisibleIndex;
 
-      return { offset, bit, raw: s0 };
+		if (digitsMode === 5) {
+		minVisibleIndex = this.modbusIndexBase;
+		maxVisibleIndex = this.modbusIndexBase === 0 ? 9999 : 9999;
+		} else if (digitsMode === 6) {
+		minVisibleIndex = this.modbusIndexBase;
+		maxVisibleIndex = this.modbusIndexBase === 0 ? 65535 : 65536;
+		} else {
+		return null;
+		}
+
+		if (visibleIndex < minVisibleIndex || visibleIndex > maxVisibleIndex) {
+		return null;
+		}
+
+		let bit = null;
+		if (bitText !== null) {
+		bit = Number(bitText);
+		if (!Number.isInteger(bit) || bit < 0 || bit > 15) return null;
+		}
+
+		if (objectKind === "bit" && bit !== null) {
+		return null;
+		}
+
+		const offset = visibleIndex - this.modbusIndexBase;
+		if (!Number.isInteger(offset) || offset < 0 || offset > 65535) return null;
+
+		return {
+		raw,
+		logicalAddress,
+		digitsMode,
+		area,
+		objectKind,
+		dataType,
+		offset,
+		bit,
+		isBitFromRegister: objectKind === "word" && bit !== null,
+		isNativeBitObject: objectKind === "bit",
+		isBool: objectKind === "bit" || bit !== null
+		};
     },
 
+	parseModbusSpec(cell) {
+		const raw = String(cell ?? "").trim();
+		if (!raw) return null;
+
+		if (!raw.includes(":")) {
+		const mb = this.parseModbusCell(raw);
+		if (!mb) return null;
+
+		return {
+		raw,
+		kind: "single",
+		area: mb.area,
+		objectKind: mb.objectKind,
+		dataType: mb.dataType,
+		start: mb.offset,
+		end: mb.offset,
+		bit: mb.bit,
+		isBitFromRegister: mb.isBitFromRegister,
+		isNativeBitObject: mb.isNativeBitObject,
+		isBool: mb.isBool,
+		digitsMode: mb.digitsMode,
+		logicalAddress: mb.logicalAddress
+		};
+		}
+
+		const parts = raw.split(":").map(x => String(x ?? "").trim()).filter(Boolean);
+		if (parts.length !== 2) return null;
+
+		const a = this.parseModbusCell(parts[0]);
+		const b = this.parseModbusCell(parts[1]);
+		if (!a || !b) return null;
+
+		if (a.area !== b.area) return null;
+		if (a.objectKind !== "word" || b.objectKind !== "word") return null;
+		if (a.bit != null || b.bit != null) return null;
+		if (b.offset < a.offset) return null;
+
+		return {
+		raw,
+		kind: "range",
+		area: a.area,
+		objectKind: "word",
+		dataType: a.dataType,
+		start: a.offset,
+		end: b.offset,
+		bit: null,
+		isBitFromRegister: false,
+		isNativeBitObject: false,
+		isBool: false,
+		digitsMode: a.digitsMode,
+		logicalAddress: `${a.logicalAddress}:${b.logicalAddress}`
+		};
+	},
+
     buildVariableMappingProgram() {
-      const lines = [];
-      lines.push("// PROGRAM VariableMapping");
-      lines.push("// Auto-generated mapping from Modbus buffers to GVL tags");
-      lines.push("");
+		const lines = [];
+		lines.push("// PROGRAM VariableMapping");
+		lines.push("// Auto-generated mapping from Modbus buffers to GVL tags");
+		lines.push("");
 
-      const findReading = (dev, regOffset, words) => {
-        for (let i = 0; i < (dev.readings?.length || 0); i++) {
-          const rd = dev.readings[i];
-          const start = this.toIntStrict(rd.address);
-          const len = this.toIntStrict(rd.length);
-          if (start === null || len === null) continue;
+		const findReading = (dev, area, startOffset, spanLen = 1) => {
+		for (let i = 0; i < (dev.readings?.length || 0); i++) {
+		const rd = dev.readings[i];
+		if (String(rd.area || "") !== String(area || "")) continue;
 
-          const end = start + len - 1;
-          const needEnd = regOffset + (words - 1);
+		const start = this.toIntStrict(rd.address);
+		const len = this.toIntStrict(rd.length);
+		if (start === null || len === null) continue;
 
-          if (regOffset >= start && needEnd <= end) {
-            const pos = (regOffset - start) + 1;
-            return { readingIdx: i + 1, pos };
-          }
-        }
-        return null;
-      };
+		const end = start + len - 1;
+		const needEnd = startOffset + spanLen - 1;
 
-      const wordExpr = (dev, readingIdx, pos) => {
-        const dataName = this.autoDataName(dev.name, 0);
-        return `Modbus.${dataName}[${readingIdx}][${pos}]`;
-      };
+		if (startOffset >= start && needEnd <= end) {
+		const pos = (startOffset - start) + 1;
+		return { readingIdx: i + 1, pos };
+		}
+		}
+		return null;
+		};
 
-      const udint32Expr = (hiWord, loWord) =>
-        `SHL(TO_UDINT(${hiWord}), 16) OR TO_UDINT(${loWord})`;
+		const wordExpr = (dev, readingIdx, pos) => {
+		const dataName = this.autoDataName(dev.name, 0);
+		return `Modbus.${dataName}[${readingIdx}][${pos}]`;
+		};
 
-      for (const dev of (this.devices || [])) {
-        const pts = dev.points || [];
-        if (!pts.length) continue;
+		const bitAccessExpr = (dev, readingIdx, pos, bit) => {
+		const dataName = this.autoDataName(dev.name, 0);
+		return `Modbus.${dataName}[${readingIdx}][${pos}].${bit}`;
+		};
 
-        lines.push(`// Device ${this.autoDevId(dev.name, 0)}`);
-        lines.push("");
+		const udint32Expr = (hiWord, loWord) =>
+		`SHL(TO_UDINT(${hiWord}), 16) OR TO_UDINT(${loWord})`;
 
-        const sorted = [...pts].sort((a, b) =>
-          (a.start - b.start) ||
-          ((a.bit ?? -1) - (b.bit ?? -1)) ||
-          String(a.name).localeCompare(String(b.name))
-        );
+		for (const dev of (this.devices || [])) {
+		const pts = dev.points || [];
+		if (!pts.length) continue;
 
-        for (const p of sorted) {
-          const tag = this.toIdentifier(p.name);
-          if (!tag) continue;
+		lines.push(`// Device ${this.autoDevId(dev.name, 0)}`);
+		lines.push("");
 
-          const t = String(p.type || "").toUpperCase();
-          const words = p.words || 1;
+		const sorted = [...pts].sort((a, b) =>
+		String(a.area).localeCompare(String(b.area)) ||
+		(a.start - b.start) ||
+		((a.bit ?? -1) - (b.bit ?? -1)) ||
+		String(a.name).localeCompare(String(b.name))
+		);
 
-          const hit = findReading(dev, p.start, words);
-          if (!hit) {
-            lines.push(`// WARN: ${tag} at ${p.start}${p.bit!=null?'.'+p.bit:''} not covered by any reading`);
-            continue;
-          }
+		for (const p of sorted) {
+		const tag = this.toIdentifier(p.name);
+		if (!tag) continue;
 
-          const w0 = wordExpr(dev, hit.readingIdx, hit.pos);
+		const t = String(p.type || "").toUpperCase();
+		const words = p.words || 1;
+		const area = p.area || "holdingRegister";
+		const spanLen = (area === "coil" || area === "discreteInput") ? 1 : words;
 
-          const isBool = (t.includes("DIGITAL") || t === "BOOL");
-          if (isBool && p.bit != null) {
-            lines.push(`${tag} := (${w0} AND SHL(WORD#1, ${p.bit})) <> WORD#0;`);
-            continue;
-          }
-          if (isBool) {
-            lines.push(`${tag} := ${w0} <> WORD#0;`);
-            continue;
-          }
+		const hit = findReading(dev, area, p.start, spanLen);
+		if (!hit) {
+		lines.push(`// WARN: ${tag} at ${p.regRaw || p.start} (${area}) not covered by any reading`);
+		continue;
+		}
 
-          if (words === 2) {
-            const w1 = wordExpr(dev, hit.readingIdx, hit.pos + 1);
-            const u32 = udint32Expr(w0, w1);
+		const w0 = wordExpr(dev, hit.readingIdx, hit.pos);
+		const isNativeBitObject = area === "coil" || area === "discreteInput";
+		const isBool = !!p.isBool || t.includes("DIGITAL") || t === "BOOL";
 
-            if (t === "DUINT" || t === "UDINT") lines.push(`${tag} := ${u32};`);
-            else if (t === "DINT") lines.push(`${tag} := TO_DINT(${u32});`);
-            else if (t === "DWORD") lines.push(`${tag} := TO_DWORD(${u32});`);
-            else if (t === "REAL") lines.push(`${tag} := TO_REAL(${u32});`);
-            else lines.push(`// WARN: ${tag} TYPE=${t} uses 2 regs but no rule, raw=${u32}`);
+		if (isNativeBitObject) {
+		lines.push(`${tag} := ${w0};`);
+		continue;
+		}
 
-            continue;
-          }
+		if (isBool && p.bit != null) {
+		lines.push(`${tag} := ${bitAccessExpr(dev, hit.readingIdx, hit.pos, p.bit)};`);
+		continue;
+		}
 
-          if (t === "WORD") lines.push(`${tag} := ${w0};`);
-          else if (t === "BYTE") lines.push(`${tag} := TO_BYTE(${w0});`);
-          else if (t === "INT") lines.push(`${tag} := TO_INT(${w0});`);
-          else if (t === "UINT") lines.push(`${tag} := TO_UINT(${w0});`);
-          else if (t === "SINT") lines.push(`${tag} := TO_SINT(${w0});`);
-          else if (t === "USINT") lines.push(`${tag} := TO_USINT(${w0});`);
-          else if (t === "REAL") lines.push(`${tag} := TO_REAL(${w0});`);
-          else lines.push(`// WARN: ${tag} unsupported TYPE=${t}, raw=${w0}`);
-        }
+		if (isBool) {
+		lines.push(`${tag} := ${w0} <> WORD#0;`);
+		continue;
+		}
 
-        lines.push("");
-      }
+		if (words === 2) {
+		const w1 = wordExpr(dev, hit.readingIdx, hit.pos + 1);
+		const u32 = udint32Expr(w0, w1);
 
-      return lines.join("\n").trimEnd();
+		if (t === "DUINT" || t === "UDINT") lines.push(`${tag} := ${u32};`);
+		else if (t === "DINT") lines.push(`${tag} := TO_DINT(${u32});`);
+		else if (t === "DWORD") lines.push(`${tag} := TO_DWORD(${u32});`);
+		else if (t === "REAL") lines.push(`${tag} := TO_REAL(${u32});`);
+		else lines.push(`// WARN: ${tag} TYPE=${t} uses 2 regs but no rule, raw=${u32}`);
+
+		continue;
+		}
+
+		if (t === "WORD") lines.push(`${tag} := ${w0};`);
+		else if (t === "BYTE") lines.push(`${tag} := TO_BYTE(${w0});`);
+		else if (t === "INT") lines.push(`${tag} := TO_INT(${w0});`);
+		else if (t === "UINT") lines.push(`${tag} := TO_UINT(${w0});`);
+		else if (t === "SINT") lines.push(`${tag} := TO_SINT(${w0});`);
+		else if (t === "USINT") lines.push(`${tag} := TO_USINT(${w0});`);
+		else if (t === "REAL") lines.push(`${tag} := TO_REAL(${w0});`);
+		else lines.push(`// WARN: ${tag} unsupported TYPE=${t}, raw=${w0}`);
+		}
+
+		lines.push("");
+		}
+
+		return lines.join("\n").trimEnd();
     },
 
     validate() {
@@ -490,6 +613,7 @@ window._MODBUS_VUE_APP = createApp({
       this.stProg = prog.join("\n").trimEnd();
       this.stVarMap = this.buildVariableMappingProgram();
       dbg.push("Generation OK.");
+	  dbg.push(`Modbus index base: ${this.modbusIndexBase}`);
       this.debug = dbg.join("\n");
     },
 
@@ -553,254 +677,433 @@ window._MODBUS_VUE_APP = createApp({
       const idx = s.indexOf("_");
       return idx === -1 ? s : s.slice(0, idx);
     },
-    wordsForType(typeRaw) {
-      const t = this.toStrTrim(typeRaw).toUpperCase();
-      if (!t) return null;
+	secondWordFromName(name) {
+	const s = this.toStrTrim(name);
+	if (!s) return "";
+	const parts = s.split("_").map(x => x.trim()).filter(Boolean);
+	return parts.length >= 2 ? parts[1] : "";
+	},
+	deviceBaseNameFromTag(name) {
+	const s = this.toStrTrim(name);
+	if (!s) return "";
 
-      if (t.includes("DIGITAL") || t === "BOOL") return 1;
-      if (t === "BYTE" || t === "WORD" || t === "INT" || t === "UINT" || t === "SINT" || t === "USINT") return 1;
-      if (t === "DINT" || t === "DUINT" || t === "REAL" || t === "DWORD") return 2;
+	const parts = s.split("_").map(x => x.trim()).filter(Boolean);
+	if (parts.length === 0) return "";
+	if (parts.length === 1) return parts[0];
 
-      return null;
-    },
+	return `${parts[0]}_${parts[1]}`;
+	},
+	wordsForType(typeRaw, modbusKind = "single") {
+	const t = this.toStrTrim(typeRaw).toUpperCase();
+	if (!t) return null;
+
+	if (t.includes("DIGITAL") || t === "BOOL") return 1;
+
+	if (t === "BYTE" || t === "WORD" || t === "INT" || t === "UINT" || t === "SINT" || t === "USINT") {
+	return 1;
+	}
+
+	if (t === "DINT" || t === "DUINT" || t === "DWORD") {
+	return modbusKind === "range" ? 2 : 1;
+	}
+
+	if (t === "REAL") {
+	return modbusKind === "range" ? 2 : 1;
+	}
+
+	return null;
+	},
 
     parseRegToOffset(regCell) {
-      const s = this.toStrTrim(regCell);
-      if (!s) return null;
-
-      const n = Number(s);
-      if (!Number.isFinite(n)) return null;
-
-      const rounded = Math.trunc(n);
-      const off = (rounded >= 40000) ? (rounded - this.holdingBase) : rounded;
-
-      if (!Number.isFinite(off) || off < 0 || off > 65535) return null;
-      return off;
-    },
+		const mb = this.parseModbusCell(regCell);
+		return mb ? mb.offset : null;
+	},
 
     buildPointsFromRows() {
-      const headerRowIndex = this.pickSheetHeaderRowIndex();
-      if (headerRowIndex === -1) {
-        this.points = [];
-        this.debug = `Header row not found (expected row ${this.headerRowNumber} or a row containing NAME/TYPE).`;
-        return false;
-      }
+		const headerRowIndex = this.pickSheetHeaderRowIndex();
+		if (headerRowIndex === -1) {
+		this.points = [];
+		this.debug = `Header row not found (expected row ${this.headerRowNumber} or a row containing NAME/TYPE).`;
+		return false;
+		}
 
-      const headerRaw = this.rows[headerRowIndex] || [];
-      const headerNorm = headerRaw.map(this.normalizeHeader);
+		const headerRaw = this.rows[headerRowIndex] || [];
+		const headerNorm = headerRaw.map(this.normalizeHeader);
 
-      const col = {};
-      headerNorm.forEach((h, i) => { if (h) col[h] = i; });
+		const col = {};
+		headerNorm.forEach((h, i) => { if (h) col[h] = i; });
 
-      const idxLocation = col["location"];
-      const idxNAME = col["name"];
-      const idxTYPE = col["type"];
-      const idxModbusReg =
-        col["modbus declaration"] ??
-        col["modbus"] ??
-        col["modbus reg"] ??
-        col["modbus register"];
+		const idxLocation = col["location"];
+		const idxNAME = col["name"];
+		const idxTYPE = col["type"];
+		const idxModbusReg =
+		col["modbus declaration"] ??
+		col["modbus"] ??
+		col["modbus reg"] ??
+		col["modbus address"] ??
+		col["modbus register"];
 
-      if (idxNAME === undefined || idxTYPE === undefined || idxModbusReg === undefined || idxLocation === undefined) {
-        this.points = [];
-        this.debug = `Missing columns. Need LOCATION, NAME, TYPE, and (Modbus declaration|Modbus|Modbus reg|Modbus register). Header row used: ${headerRowIndex + 1}`;
-        return false;
-      }
+		if (idxNAME === undefined || idxTYPE === undefined || idxModbusReg === undefined || idxLocation === undefined) {
+		this.points = [];
+		this.debug = `Missing columns. Need LOCATION, NAME, TYPE, and (Modbus declaration|Modbus|Modbus reg|Modbus register|Modbus address). Header row used: ${headerRowIndex + 1}`;
+		return false;
+		}
 
-      const dataRows = this.rows.slice(headerRowIndex + 1);
-      const pts = [];
-      const typeErrors = [];
+		const dataRows = this.rows.slice(headerRowIndex + 1);
+		const pts = [];
+		const typeErrors = [];
+		const parseErrors = [];
 
-      for (let i = 0; i < dataRows.length; i++) {
-        const r = dataRows[i] || [];
+		for (let i = 0; i < dataRows.length; i++) {
+		const r = dataRows[i] || [];
 
-        const name = this.toStrTrim(r[idxNAME]);
-        if (!name) continue;
+		const name = this.toStrTrim(r[idxNAME]);
+		if (!name) continue;
 
-        const locationRaw = this.toStrTrim(r[idxLocation]);
-        const loc = locationRaw.toLowerCase().replace(/\s+/g, "");
-        if (!loc.includes("modbustcp")) continue;
+		const locationRaw = this.toStrTrim(r[idxLocation]);
+		const loc = locationRaw.toLowerCase().replace(/\s+/g, "");
+		if (!loc.includes("modbustcp")) continue;
 
-        const type = this.toStrTrim(r[idxTYPE]);
-        const words = this.wordsForType(type);
-        if (!words) {
-          typeErrors.push(`Row ${headerRowIndex + 2 + i}: unsupported TYPE "${type}" for tag ${name}`);
-          continue;
-        }
+		const type = this.toStrTrim(r[idxTYPE]).toUpperCase();
+		const mb = this.parseModbusSpec(r[idxModbusReg]);
 
-        const mb = this.parseModbusCell(r[idxModbusReg]);
-        if (!mb) continue;
+		if (!mb) {
+		parseErrors.push(`Row ${headerRowIndex + 2 + i}: invalid Modbus address "${this.toStrTrim(r[idxModbusReg])}" for tag ${name}`);
+		continue;
+		}
 
-        const start = mb.offset;
-        const end = start + words - 1;
+		let words = this.wordsForType(type, mb.kind);
 
-        pts.push({
-          name,
-          type: type.toUpperCase(),
-          start,
-          end,
-          bit: mb.bit,
-          regRaw: mb.raw,
-          words,
-          root: this.rootFromName(name)
-        });
-      }
+		if (mb.isNativeBitObject || mb.isBitFromRegister) {
+		if (type !== "BOOL" && !type.includes("DIGITAL")) {
+		typeErrors.push(`Row ${headerRowIndex + 2 + i}: ${name} uses ${mb.raw} and should be BOOL/DIGITAL, not ${type}`);
+		continue;
+		}
+		words = 1;
+		} else {
+		if (!words) {
+		typeErrors.push(`Row ${headerRowIndex + 2 + i}: unsupported TYPE "${type}" for tag ${name}`);
+		continue;
+		}
+		}
 
-      this.points = pts;
+		const start = mb.start;
+		let end = mb.end;
 
-      if (typeErrors.length) {
-        this.debug = `Parsed points: ${pts.length}\nTYPE issues:\n- ${typeErrors.slice(0, 30).join("\n- ")}${typeErrors.length > 30 ? "\n- ..." : ""}`;
-      }
+		if (mb.kind === "single" && mb.objectKind === "word") {
+		end = start + (words - 1);
+		}
 
-      return true;
+		if (mb.kind === "range") {
+		const declaredWords = (mb.end - mb.start + 1);
+		if (declaredWords !== words) {
+		typeErrors.push(`Row ${headerRowIndex + 2 + i}: ${name} uses ${mb.raw} (${declaredWords} regs) but TYPE ${type} expects ${words}.`);
+		continue;
+		}
+		}
+
+		pts.push({
+		name,
+		type,
+		start,
+		end,
+		bit: mb.bit,
+		regRaw: mb.raw,
+		words,
+		root: this.rootFromName(name),
+		deviceBaseName: this.deviceBaseNameFromTag(name),
+		area: mb.area,
+		objectKind: mb.objectKind,
+		dataType: mb.dataType,
+		digitsMode: mb.digitsMode,
+		logicalAddress: mb.logicalAddress,
+		isBool: mb.isBool,
+		isBitFromRegister: mb.isBitFromRegister,
+		isNativeBitObject: mb.isNativeBitObject
+		});
+		}
+
+		this.points = pts;
+
+		const debugParts = [];
+		debugParts.push(`Parsed points: ${pts.length}`);
+		if (parseErrors.length) debugParts.push(`Address issues:\n- ${parseErrors.slice(0, 30).join("\n- ")}${parseErrors.length > 30 ? "\n- ..." : ""}`);
+		if (typeErrors.length) debugParts.push(`TYPE issues:\n- ${typeErrors.slice(0, 30).join("\n- ")}${typeErrors.length > 30 ? "\n- ..." : ""}`);
+		if (debugParts.length > 1) this.debug = debugParts.join("\n");
+		return true;
+
     },
 
     buildReadingsForDevice(points) {
-      const items = [...points].sort((a,b) => a.start - b.start || a.end - b.end);
+		const grouped = new Map();
 
-      const readings = [];
-      let cur = null;
+		for (const p of points) {
+		const key = p.area || "holdingRegister";
+		if (!grouped.has(key)) grouped.set(key, []);
+		grouped.get(key).push(p);
+		}
 
-      const flush = () => {
-        if (!cur) return;
-        const len = (cur.end - cur.start + 1);
-        readings.push({ id: crypto.randomUUID(), address: String(cur.start), length: String(len) });
-        cur = null;
-      };
+		const readings = [];
 
-      for (const it of items) {
-        const itLen = it.words;
+		const flushGrouped = (items, area) => {
+		const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end);
 
-        if (!cur) {
-          cur = { start: it.start, end: it.end, usedLen: itLen };
-          continue;
-        }
+		let cur = null;
 
-        const gap = it.start - (cur.end + 1);
-        const newStart = cur.start;
-        const newEnd = it.end;
-        const newSpanLen = newEnd - newStart + 1;
-        const newUsedLen = cur.usedLen + itLen;
-        const waste = newSpanLen - newUsedLen;
-        const wastePct = newSpanLen > 0 ? (waste / newSpanLen) * 100 : 0;
+		const flush = () => {
+		if (!cur) return;
+		const len = (cur.end - cur.start + 1);
+		readings.push({
+		id: crypto.randomUUID(),
+		address: String(cur.start),
+		length: String(len),
+		area
+		});
+		cur = null;
+		};
 
-        const exceedMaxRegs = newSpanLen > this.maxRegsPerRead;
-        const exceedGap = gap > this.maxGapRegs;
-        const exceedWaste = wastePct > this.maxWastePct;
+		for (const it of sorted) {
+		const spanEnd = Math.max(it.start, it.end);
+		const itLen = spanEnd - it.start + 1;
 
-        if (exceedMaxRegs || exceedGap || exceedWaste) {
-          flush();
-          cur = { start: it.start, end: it.end, usedLen: itLen };
-        } else {
-          cur.end = it.end;
-          cur.usedLen = newUsedLen;
-        }
-      }
+		if (!cur) {
+		cur = { start: it.start, end: spanEnd, usedLen: itLen };
+		continue;
+		}
 
-      flush();
-      return readings;
+		const gap = it.start - (cur.end + 1);
+		const newStart = cur.start;
+		const newEnd = spanEnd;
+		const newSpanLen = newEnd - newStart + 1;
+		const newUsedLen = cur.usedLen + itLen;
+		const waste = newSpanLen - newUsedLen;
+		const wastePct = newSpanLen > 0 ? (waste / newSpanLen) * 100 : 0;
+
+		const exceedMaxRegs = newSpanLen > this.maxRegsPerRead;
+		const exceedGap = gap > this.maxGapRegs;
+		const exceedWaste = wastePct > this.maxWastePct;
+
+		if (exceedMaxRegs || exceedGap || exceedWaste) {
+		flush();
+		cur = { start: it.start, end: spanEnd, usedLen: itLen };
+		} else {
+		cur.end = spanEnd;
+		cur.usedLen = newUsedLen;
+		}
+		}
+
+		flush();
+		};
+
+		for (const [area, items] of grouped.entries()) {
+		flushGrouped(items, area);
+		}
+
+		return readings.sort((a, b) =>
+		String(a.area).localeCompare(String(b.area)) ||
+		(Number(a.address) - Number(b.address))
+		);
     },
 
-    buildDevicesFromPoints() {
-      const byRoot = new Map();
-      for (const p of this.points) {
-        if (!p.root) continue;
-        if (!byRoot.has(p.root)) byRoot.set(p.root, []);
-        byRoot.get(p.root).push(p);
-      }
+    buildDevicesFromPoints(previousByKey = new Map()) {
+		const byRoot = new Map();
 
-      const newDevices = [];
-      let devIdxGlobal = 0;
+		for (const p of this.points) {
+		const key = p.root || "";
+		if (!key) continue;
+		if (!byRoot.has(key)) byRoot.set(key, []);
+		byRoot.get(key).push(p);
+		}
 
-      for (const [root, items] of byRoot.entries()) {
-        items.sort((a,b) => a.start - b.start || a.end - b.end || a.name.localeCompare(b.name));
+		const newDevices = [];
 
-        const rootDevices = [];
+		for (const [root, items] of byRoot.entries()) {
+		items.sort((a, b) =>
+		String(a.area).localeCompare(String(b.area)) ||
+		(a.start - b.start) ||
+		(a.end - b.end) ||
+		((a.bit ?? -1) - (b.bit ?? -1)) ||
+		a.name.localeCompare(b.name)
+		);
 
-        for (const it of items) {
-          let placed = false;
+		const rootDevices = [];
 
-          for (const dev of rootDevices) {
-            let collides = false;
-            for (let r = it.start; r <= it.end; r++) {
-              if (dev.used.has(r)) { collides = true; break; }
-            }
-            if (!collides) {
-              for (let r = it.start; r <= it.end; r++) dev.used.add(r);
-              dev.points.push(it);
-              placed = true;
-              break;
-            }
-          }
+		const pointCollides = (dev, it) => {
+		const isBitPoint = !!it.isBitFromRegister && it.bit != null && it.start === it.end;
 
-          if (!placed) {
-            const used = new Set();
-            for (let r = it.start; r <= it.end; r++) used.add(r);
-            rootDevices.push({ used, points: [it] });
-          }
-        }
+		if (isBitPoint) {
+		const reg = it.start;
 
-        rootDevices.forEach((d, idx) => {
-          const deviceName = root;
-          const prev = this.devices?.[devIdxGlobal++] ?? null;
+		if (dev.usedRegs.has(reg)) return true;
 
-          newDevices.push({
-            id: prev?.id ?? crypto.randomUUID(),
-            name: prev?.name ?? deviceName,
-            ip: prev?.ip ?? "",
-            slaveId: prev?.slaveId ?? "",
-            dataType: prev?.dataType ?? "MW",
-            readings: this.buildReadingsForDevice(d.points),
-            points: d.points
-          });
-        });
-      }
+		const usedBits = dev.usedBitsByReg.get(reg);
+		if (!usedBits) return false;
 
-      newDevices.sort((a,b) => a.name.localeCompare(b.name));
+		return usedBits.has(it.bit);
+		}
 
-      // Deduplicate names: same name → suffix _0, _1, …
-      const nameCounts = new Map();
-      newDevices.forEach(d => {
-        const k = d.name.toLowerCase();
-        nameCounts.set(k, (nameCounts.get(k) || 0) + 1);
-      });
-      const nameIdx = new Map();
-      newDevices.forEach(d => {
-        const k = d.name.toLowerCase();
-        if ((nameCounts.get(k) || 0) > 1) {
-          const idx = nameIdx.get(k) ?? 0;
-          d.name = `${d.name}_${idx}`;
-          nameIdx.set(k, idx + 1);
-        }
-      });
+		for (let r = it.start; r <= it.end; r++) {
+		if (dev.usedRegs.has(r)) return true;
 
-      this.devices = (newDevices.length ? newDevices : this.devices);
+		const usedBits = dev.usedBitsByReg.get(r);
+		if (usedBits && usedBits.size > 0) return true;
+		}
+
+		return false;
+		};
+
+		const addPointUsage = (dev, it) => {
+		const isBitPoint = !!it.isBitFromRegister && it.bit != null && it.start === it.end;
+
+		if (isBitPoint) {
+		if (!dev.usedBitsByReg.has(it.start)) {
+		dev.usedBitsByReg.set(it.start, new Set());
+		}
+		dev.usedBitsByReg.get(it.start).add(it.bit);
+		return;
+		}
+
+		for (let r = it.start; r <= it.end; r++) {
+		dev.usedRegs.add(r);
+		}
+		};
+
+		for (const it of items) {
+		let placed = false;
+
+		for (const dev of rootDevices) {
+		if (dev.area !== it.area) continue;
+
+		if (!pointCollides(dev, it)) {
+		addPointUsage(dev, it);
+		dev.points.push(it);
+		placed = true;
+		break;
+		}
+		}
+
+		if (!placed) {
+		const dev = {
+		area: it.area,
+		dataType: it.dataType,
+		usedRegs: new Set(),
+		usedBitsByReg: new Map(),
+		points: [it]
+		};
+
+		addPointUsage(dev, it);
+		rootDevices.push(dev);
+		}
+		}
+
+		const areaDataTypeMap = {
+		coil: "MX",
+		discreteInput: "IX",
+		inputRegister: "IW",
+		holdingRegister: "MW"
+		};
+
+		const getSecondWordForDevice = (dev) => {
+		const counts = new Map();
+
+		for (const p of (dev.points || [])) {
+		const second = this.secondWordFromName(p.name);
+		if (!second) continue;
+
+		const key = second.toLowerCase();
+		counts.set(key, {
+		value: second,
+		count: (counts.get(key)?.count || 0) + 1
+		});
+		}
+
+		let best = "";
+		let bestCount = -1;
+
+		for (const item of counts.values()) {
+		if (item.count > bestCount) {
+		best = item.value;
+		bestCount = item.count;
+		}
+		}
+
+		return best;
+		};
+
+		const rootDeviceCount = rootDevices.length;
+
+		rootDevices.forEach((d) => {
+		const secondWord = getSecondWordForDevice(d);
+
+		const baseLogicalName =
+		(rootDeviceCount > 1 && secondWord)
+		? `${root}_${secondWord}`
+		: root;
+
+		const sameBaseDifferentAreas = rootDevices.filter((x) => {
+		const xSecond = getSecondWordForDevice(x);
+		const xBase = (rootDeviceCount > 1 && xSecond) ? `${root}_${xSecond}` : root;
+		return xBase.toLowerCase() === baseLogicalName.toLowerCase() && String(x.area || "") !== String(d.area || "");
+		}).length > 0;
+
+		const finalDeviceName = sameBaseDifferentAreas
+		? `${baseLogicalName}_${areaDataTypeMap[d.area] || d.dataType || d.area || ""}`
+		: baseLogicalName;
+
+		const prevKey = `${finalDeviceName.trim().toLowerCase()}|${String(d.area || "").trim()}`;
+		const prev = previousByKey.get(prevKey) || null;
+
+		newDevices.push({
+		id: prev?.id ?? crypto.randomUUID(),
+		name: prev?.name ?? finalDeviceName,
+		ip: prev?.ip ?? "",
+		slaveId: prev?.slaveId ?? "",
+		dataType: prev?.dataType ?? d.dataType ?? "MW",
+		modbusArea: d.area,
+		readings: this.buildReadingsForDevice(d.points),
+		points: d.points
+		});
+		});
+		}
+
+		newDevices.sort((a, b) => a.name.localeCompare(b.name));
+
+		this.devices = newDevices;
     },
 
     rebuildFromRows() {
-      const n = Array.isArray(this.rows) ? this.rows.length : -1;
-      this.debug = `Rebuild clicked. rows.length=${n}, usedSheet=${this.usedSheetName || '-'}`;
+		const n = Array.isArray(this.rows) ? this.rows.length : -1;
+		this.debug = `Rebuild clicked. rows.length=${n}, usedSheet=${this.usedSheetName || '-'}, modbusIndexBase=${this.modbusIndexBase}`;
 
-      if (!Array.isArray(this.rows) || this.rows.length === 0) {
-        this.debug += "\nNo Excel loaded (rows is empty).";
-        return;
-      }
+		if (!Array.isArray(this.rows) || this.rows.length === 0) {
+		this.debug += "\nNo Excel loaded (rows is empty).";
+		return;
+		}
 
-      const ok = this.buildPointsFromRows();
-      if (!ok) {
-        this.debug += "\nbuildPointsFromRows() returned false.";
-        return;
-      }
+		const ok = this.buildPointsFromRows();
+		if (!ok) {
+		this.debug += "\nbuildPointsFromRows() returned false.";
+		return;
+		}
 
-      this.devices = this.devices.filter(dev =>
-        dev.name && dev.name.trim() !== 'Device' &&
-        dev.name.trim() !== 'unnamed' &&
-        !dev.name.startsWith('Device ')
-      );
+		// Guardar solo datos editables del usuario para intentar reusarlos
+		const previousByKey = new Map();
+		for (const dev of (this.devices || [])) {
+		const key = `${String(dev.name || "").trim().toLowerCase()}|${String(dev.modbusArea || "").trim()}`;
+		previousByKey.set(key, {
+		id: dev.id,
+		name: dev.name,
+		ip: dev.ip,
+		slaveId: dev.slaveId,
+		dataType: dev.dataType
+		});
+		}
 
-      this.buildDevicesFromPoints();
-      this.debug += `\nDevices=${this.devices.length}, points=${this.points.length}`;
-      this.generate();
+		this.devices = [];
+		this.buildDevicesFromPoints(previousByKey);
+
+		this.debug += `\nDevices=${this.devices.length}, points=${this.points.length}`;
+		this.generate();
     },
 
     clearExcel() {

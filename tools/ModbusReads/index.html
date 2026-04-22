@@ -98,20 +98,20 @@
           <div class="panel-body">
             <div class="grid-4">
               <div>
+                <label class="form-label">Sheet tab name</label>
+                <input class="form-input" v-model="preferredSheetName" placeholder="IO-list" @change="generate()" />
+              </div>
+			  <div>
                 <label class="form-label">Header row</label>
                 <input class="form-input" v-model.number="headerRowNumber" type="number" min="1" @change="onExcelSettingChange()" />
               </div>
-              <div>
-                <label class="form-label">Sheet name</label>
-                <input class="form-input" v-model="preferredSheetName" placeholder="IO-list" @change="generate()" />
-              </div>
-              <div>
-                <label class="form-label">Holding base</label>
-                <select class="form-select" v-model.number="holdingBase" @change="onExcelSettingChange()">
-                  <option :value="40001">40001</option>
-                  <option :value="40000">40000</option>
-                </select>
-              </div>
+			  <div>
+			    <label class="form-label">MB address offset</label>
+			    <select class="form-select" v-model.number="modbusIndexBase" @change="onExcelSettingChange()">
+			  	<option :value="1">Base 1 (00001 / 10001 / 30001 / 40001)</option>
+			  	<option :value="0">Base 0 (00000 / 10000 / 30000 / 40000)</option>
+			    </select>
+			  </div>
               <div>
                 <label class="form-label">Max regs/read</label>
                 <input class="form-input" v-model.number="maxRegsPerRead" type="number" min="1" max="125" @change="onExcelSettingChange()" />

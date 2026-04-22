@@ -96,7 +96,15 @@
 								<button :class="{ active: activeSection === 'alarms_prog' }" @click="activeSection = 'alarms_prog'">Program</button>
 							</div>
 						</div>
-
+						
+<div class="dropdown">
+	<button class="dropbtn">IO_Test PRG ▾</button>
+	<div class="dropdown-content">
+		<button :class="{ active: activeSection === 'io_test_decl' }" @click="activeSection = 'io_test_decl'">Declarations</button>
+		<button :class="{ active: activeSection === 'io_test_prog' }" @click="activeSection = 'io_test_prog'">Program</button>
+	</div>
+</div>
+						
 						<div class="dropdown">
 							<button class="dropbtn">Scaling ▾</button>
 							<div class="dropdown-content">
@@ -109,6 +117,7 @@
 							<button class="dropbtn">Files ▾</button>
 							<div class="dropdown-content">
 								<button :class="{ active: activeSection === 'tmc' }" @click="activeSection = 'tmc'">Alarms.tmc</button>
+								<button :class="{ active: activeSection === 'io_test_tmc' }" @click="activeSection = 'io_test_tmc'">IO_Test.tmc</butto
 							</div>
 						</div>
 
@@ -207,6 +216,22 @@
 					</div>
 					<pre class="code-editor" v-html="highlightPLC(alarmsTwinCatProgram)"></pre>
 				</div>
+				
+<div v-if="activeSection === 'io_test_decl'" class="code-window">
+	<div class="window-bar">
+		<span class="window-title">IO_Test <span class="window-sub">PRG – Declarations</span></span>
+		<button class="copyBtn" @click="copyText(ioTestDeclaration, 'IO_Test Declarations')">Copy</button>
+	</div>
+	<pre class="code-editor" v-html="highlightPLC(ioTestDeclaration)"></pre>
+</div>
+
+<div v-if="activeSection === 'io_test_prog'" class="code-window">
+	<div class="window-bar">
+		<span class="window-title">IO_Test <span class="window-sub">PRG – Program</span></span>
+		<button class="copyBtn" @click="copyText(ioTestProgram, 'IO_Test Program')">Copy</button>
+	</div>
+	<pre class="code-editor" v-html="highlightPLC(ioTestProgram)"></pre>
+</div>
 
 				<div v-if="activeSection === 'var_scale'" class="code-window">
 					<div class="window-bar">
@@ -223,6 +248,16 @@
 					</div>
 					<pre class="code-editor" v-html="highlightPLC(variableMappingProgram)"></pre>
 				</div>
+
+<div v-if="activeSection === 'io_test_tmc'" class="code-window">
+	<div class="window-bar">
+		<span class="window-title">IO_Test <span class="window-sub">.tmc file</span></span>
+		<div class="window-actions">
+			<button class="copyBtn" @click="copyText(ioTestTmcText, 'IO_Test.tmc Copy')">Copy</button>
+		</div>
+	</div>
+	<pre class="code-editor" v-html="highlightPLC(ioTestTmcText)"></pre>
+</div>
 
 				<div v-if="activeSection === 'tmc'" class="code-window">
 					<div class="window-bar">

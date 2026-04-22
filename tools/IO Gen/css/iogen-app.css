@@ -500,8 +500,8 @@ body {
 .plc-string  { color: var(--plc-string);  }
 .plc-number  { color: var(--plc-number);  }
 .plc-hwaddr  { color: var(--plc-hwaddr);  font-weight: 600; }
-.plc-attr    { color: var(--plc-attr);    }
-.plc-region  { color: var(--plc-region);  font-style: italic; }
+.plc-attr    { color: var(--plc-attr);    font-style: italic; }
+.plc-region  { color: var(--plc-region);  }
 .plc-xmltag  { color: var(--plc-xmltag);  }
 
 /* ══════════════════════════════════════════════════════════════════════
