@@ -7,13 +7,16 @@
 const APP_TEMPLATES = {
 
   // Cabecera del fichero Alarms.tmc (hasta el primer <EventId>)
-  tplTmcHeader:
-    `<?xml version="1.0"?>\n` +
+  tplTmcHeader(alarmClassName) {
+    return(
+	`<?xml version="1.0"?>\n` +
     `<TcModuleClass>\n` +
     `\t<DataTypes>\n` +
     `\t\t<DataType>\n` +
-    `\t\t\t<Name GUID="{F35E4D12-5B8B-4C8F-95D2-0AE92108A152}">AlarmClass</Name>\n` +
-    `\t\t\t<DisplayName TxtId=""><![CDATA[Alarms]]></DisplayName>`,
+    `\t\t\t<Name GUID="{F35E4D12-5B8B-4C8F-95D2-0AE92108A152}">${alarmClassName}</Name>\n` +
+    `\t\t\t<DisplayName TxtId=""><![CDATA[Alarms]]></DisplayName>`
+	);
+  },
 
   // Pie del fichero Alarms.tmc (después del último <EventId>)
   tplTmcFooter:

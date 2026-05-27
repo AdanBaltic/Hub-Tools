@@ -378,12 +378,12 @@ window._MODBUS_VUE_APP = createApp({
 
 		const wordExpr = (dev, readingIdx, pos) => {
 		const dataName = this.autoDataName(dev.name, 0);
-		return `Modbus.${dataName}[${readingIdx}][${pos}]`;
+		return `Modbus.${dataName}[${pos}]`; //[${readingIdx}]
 		};
 
 		const bitAccessExpr = (dev, readingIdx, pos, bit) => {
 		const dataName = this.autoDataName(dev.name, 0);
-		return `Modbus.${dataName}[${readingIdx}][${pos}].${bit}`;
+		return `Modbus.${dataName}[${pos}].${bit}`; //[${readingIdx}]
 		};
 
 		const udint32Expr = (hiWord, loWord) =>
@@ -603,7 +603,7 @@ window._MODBUS_VUE_APP = createApp({
         prog.push(`\taddresses := ${adrName},`);
         prog.push(`\tdata      := ${dataName},`);
         prog.push(`\texecute   := execute_read`);
-        prog.push(").");
+        prog.push(");");
         prog.push("");
       });
 

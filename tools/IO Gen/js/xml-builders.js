@@ -103,4 +103,23 @@ const xmlBuilders = {
     this.downloadTextFile(tmc, 'Alarms.tmc', 'application/xml');
   },
 
+  downloadIoTestTmc() {
+  const content = String(this.ioTestTmcText ?? '');
+  if (!content.trim()) {
+    this.debug = 'Nothing to download: IOTest.tmc is empty.';
+    return;
+  }
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'IOTest.tmc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+
+  this.debug = 'IOTest.tmc downloaded.';
+  }
+
 };
