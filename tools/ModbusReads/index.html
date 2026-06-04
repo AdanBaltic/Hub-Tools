@@ -62,11 +62,6 @@
         </button>
       </div>
       <div class="tab-meta">
-        <label class="project-file-label">
-          Abrir proyecto
-          <input type="file" @change="onProjectFile" accept=".hubproject" style="display:none" />
-        </label>
-        <button class="btn project-save-btn" @click="saveProject">Guardar proyecto</button>
         <label class="file-input-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload Excel
@@ -80,6 +75,20 @@
         <span class="meta-pill meta-pill-clickable" @click="showRoots = !showRoots">
           Roots: {{ rootsCount }}&nbsp;{{ showRoots ? '▾' : '▸' }}
         </span>
+      </div>
+    </div>
+
+    <div class="project-bar">
+      <div class="project-bar-copy">
+        <span class="project-bar-title">Proyecto portable</span>
+        <span class="project-bar-description">Guarda los datos del Excel, Excel Settings y la configuracion de dispositivos.</span>
+      </div>
+      <div class="project-bar-actions">
+        <label class="project-file-label">
+          Abrir proyecto
+          <input type="file" @change="onProjectFile" accept=".hubproject" style="display:none" />
+        </label>
+        <button class="btn btn-primary project-save-btn" @click="saveProject">Guardar proyecto</button>
       </div>
     </div>
 
