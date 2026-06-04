@@ -8,6 +8,7 @@ window._MODBUS_VUE_APP = createApp({
 
       // Excel settings
       preferredSheetName: "IO-list",
+      sourceFileName: "",
       usedSheetName: "",
       headerRowNumber: 10,
 
@@ -378,12 +379,12 @@ window._MODBUS_VUE_APP = createApp({
 
 		const wordExpr = (dev, readingIdx, pos) => {
 		const dataName = this.autoDataName(dev.name, 0);
-		return `Modbus.${dataName}[${readingIdx}][${pos}]`;
+		return `Modbus.${dataName}[${pos}]`; //[${readingIdx}]
 		};
 
 		const bitAccessExpr = (dev, readingIdx, pos, bit) => {
 		const dataName = this.autoDataName(dev.name, 0);
-		return `Modbus.${dataName}[${readingIdx}][${pos}].${bit}`;
+		return `Modbus.${dataName}[${pos}].${bit}`; //[${readingIdx}]
 		};
 
 		const udint32Expr = (hiWord, loWord) =>
@@ -603,7 +604,7 @@ window._MODBUS_VUE_APP = createApp({
         prog.push(`\taddresses := ${adrName},`);
         prog.push(`\tdata      := ${dataName},`);
         prog.push(`\texecute   := execute_read`);
-        prog.push(").");
+        prog.push(");");
         prog.push("");
       });
 
@@ -1109,6 +1110,7 @@ window._MODBUS_VUE_APP = createApp({
     clearExcel() {
       this.rows = [];
       this.points = [];
+      this.sourceFileName = "";
       this.usedSheetName = "";
       this.debug = "Excel cleared (manual mode).";
       this.generate();
@@ -1118,6 +1120,150 @@ window._MODBUS_VUE_APP = createApp({
       this.isDarkMode = !this.isDarkMode;
       document.body.classList.toggle('dark-theme', this.isDarkMode);
       localStorage.setItem('app-theme', this.isDarkMode ? 'dark' : 'light');
+    },
+
+    projectNumber(value, label, min, max) {
+      const number = Number(value);
+      if (!Number.isFinite(number) || !Number.isInteger(number) || number < min || number > max) {
+        throw new Error(`Project setting "${label}" is invalid.`);
+      }
+      return number;
+    },
+
+    sanitizeProjectPoint(point) {
+      if (!HubProjectFile.isPlainObject(point)) throw new Error("Project contains an invalid Modbus point.");
+      const numberOrNull = (value) => {
+        if (value === null || value === undefined) return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : null;
+      };
+
+      return {
+        name: HubProjectFile.safeString(point.name, "", 255),
+        type: HubProjectFile.safeString(point.type, "", 50),
+        start: numberOrNull(point.start),
+        end: numberOrNull(point.end),
+        bit: numberOrNull(point.bit),
+        regRaw: HubProjectFile.safeString(point.regRaw, "", 255),
+        words: numberOrNull(point.words),
+        root: HubProjectFile.safeString(point.root, "", 255),
+        deviceBaseName: HubProjectFile.safeString(point.deviceBaseName, "", 255),
+        area: HubProjectFile.safeString(point.area, "", 50),
+        objectKind: HubProjectFile.safeString(point.objectKind, "", 50),
+        dataType: HubProjectFile.safeString(point.dataType, "", 50),
+        digitsMode: numberOrNull(point.digitsMode),
+        logicalAddress: HubProjectFile.safeString(point.logicalAddress, "", 255),
+        isBool: Boolean(point.isBool),
+        isBitFromRegister: Boolean(point.isBitFromRegister),
+        isNativeBitObject: Boolean(point.isNativeBitObject),
+      };
+    },
+
+    sanitizeProjectDevice(device) {
+      if (!HubProjectFile.isPlainObject(device)) throw new Error("Project contains an invalid device.");
+      if (!Array.isArray(device.readings) || device.readings.length === 0) {
+        throw new Error("Every project device must contain at least one reading.");
+      }
+
+      const primitive = (value) => {
+        if (typeof value === "string" || typeof value === "number") return value;
+        throw new Error("Project contains an invalid reading or device value.");
+      };
+
+      return {
+        id: HubProjectFile.safeString(device.id) || crypto.randomUUID(),
+        name: HubProjectFile.safeString(device.name, "", 255),
+        ip: HubProjectFile.safeString(device.ip, "", 255),
+        slaveId: primitive(device.slaveId),
+        dataType: HubProjectFile.safeString(device.dataType, "MW", 50),
+        modbusArea: HubProjectFile.safeString(device.modbusArea, "", 50),
+        readings: device.readings.map((reading) => {
+          if (!HubProjectFile.isPlainObject(reading)) throw new Error("Project contains an invalid reading.");
+          return {
+            id: HubProjectFile.safeString(reading.id) || crypto.randomUUID(),
+            address: primitive(reading.address),
+            length: primitive(reading.length),
+            area: HubProjectFile.safeString(reading.area, "", 50),
+          };
+        }),
+        points: Array.isArray(device.points)
+          ? device.points.map((point) => this.sanitizeProjectPoint(point))
+          : [],
+      };
+    },
+
+    saveProject() {
+      try {
+        const project = HubProjectFile.createProject({
+          tool: "modbus-reads",
+          source: {
+            fileName: this.sourceFileName,
+            sheetName: this.usedSheetName,
+            rows: this.rows,
+          },
+          settings: {
+            preferredSheetName: this.preferredSheetName,
+            headerRowNumber: this.headerRowNumber,
+            modbusIndexBase: this.modbusIndexBase,
+            maxRegsPerRead: this.maxRegsPerRead,
+            maxGapRegs: this.maxGapRegs,
+            maxWastePct: this.maxWastePct,
+          },
+          state: {
+            points: this.points,
+            devices: this.devices,
+          },
+        });
+
+        const filename = HubProjectFile.buildFilename(this.sourceFileName, "modbus-reads");
+        HubProjectFile.download(project, filename);
+        this.debug = `Project saved: ${filename}`;
+      } catch (err) {
+        this.debug = `Project save failed: ${err?.message ? err.message : String(err)}`;
+      }
+    },
+
+    async onProjectFile(e) {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+
+      try {
+        const project = await HubProjectFile.readFile(file, "modbus-reads");
+        if (!Array.isArray(project.state.devices) || project.state.devices.length === 0) {
+          throw new Error("Project must contain at least one device.");
+        }
+
+        const devices = project.state.devices.map((device) => this.sanitizeProjectDevice(device));
+        const points = Array.isArray(project.state.points)
+          ? project.state.points.map((point) => this.sanitizeProjectPoint(point))
+          : devices.flatMap((device) => device.points);
+        const sourceFileName = HubProjectFile.safeString(project.source.fileName);
+        const usedSheetName = HubProjectFile.safeString(project.source.sheetName);
+        const rows = HubProjectFile.sanitizeRows(project.source.rows);
+        const preferredSheetName = HubProjectFile.safeString(project.settings.preferredSheetName, "IO-list", 255);
+        const headerRowNumber = this.projectNumber(project.settings.headerRowNumber, "headerRowNumber", 1, 100000);
+        const modbusIndexBase = this.projectNumber(project.settings.modbusIndexBase, "modbusIndexBase", 0, 1);
+        const maxRegsPerRead = this.projectNumber(project.settings.maxRegsPerRead, "maxRegsPerRead", 1, 125);
+        const maxGapRegs = this.projectNumber(project.settings.maxGapRegs, "maxGapRegs", 0, 65535);
+        const maxWastePct = this.projectNumber(project.settings.maxWastePct, "maxWastePct", 0, 100);
+
+        this.sourceFileName = sourceFileName;
+        this.usedSheetName = usedSheetName;
+        this.rows = rows;
+        this.preferredSheetName = preferredSheetName;
+        this.headerRowNumber = headerRowNumber;
+        this.modbusIndexBase = modbusIndexBase;
+        this.maxRegsPerRead = maxRegsPerRead;
+        this.maxGapRegs = maxGapRegs;
+        this.maxWastePct = maxWastePct;
+        this.points = points;
+        this.devices = devices;
+        this.generate();
+        this.debug += `${this.debug ? "\n" : ""}Project opened: ${file.name}`;
+      } catch (err) {
+        this.debug = `Project open failed: ${err?.message ? err.message : String(err)}`;
+      }
     },
 
     // ── Syntax highlighter (PLC / Structured Text) ───────────────────
@@ -1251,6 +1397,7 @@ window._MODBUS_VUE_APP = createApp({
           : wb.SheetNames[0];
 
         this.usedSheetName = sheetName;
+        this.sourceFileName = file.name;
         const ws = wb.Sheets[sheetName];
 
         this.rows = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: true, defval: "" });
@@ -1266,4 +1413,3 @@ window._MODBUS_VUE_APP = createApp({
     this.generate();
   }
 }).mount("#app");
-

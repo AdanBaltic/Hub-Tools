@@ -36,6 +36,7 @@ window._IO_GEN_VUE_APP = createApp({
       preferredSheetName: appCfg.preferredSheetName ?? 'IO-list',
 
       // ── Runtime ──
+      sourceFileName: '',
       usedSheetName: '',
       rows:          [],
 
@@ -107,6 +108,65 @@ window._IO_GEN_VUE_APP = createApp({
       localStorage.setItem(THEME_STORAGE_KEY, this.isDarkMode ? 'dark' : 'light');
     },
 
+    saveProject() {
+      try {
+        if (!this.rows.length) throw new Error('Load an Excel file before saving a project.');
+
+        const project = HubProjectFile.createProject({
+          tool: 'io-gen',
+          source: {
+            fileName: this.sourceFileName,
+            sheetName: this.usedSheetName,
+            rows: this.rows,
+          },
+          settings: {
+            headerRowNumber: this.headerRowNumber,
+            preferredSheetName: this.preferredSheetName,
+          },
+          state: {},
+        });
+
+        const filename = HubProjectFile.buildFilename(this.sourceFileName, 'io-gen');
+        HubProjectFile.download(project, filename);
+        this.debug = `Project saved: ${filename}`;
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        this.fileError = message;
+        this.debug = `Project save failed: ${message}`;
+      }
+    },
+
+    async onProjectFile(e) {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+
+      try {
+        const project = await HubProjectFile.readFile(file, 'io-gen');
+        const rows = HubProjectFile.sanitizeRows(project.source.rows, false);
+        const headerRowNumber = Number(project.settings.headerRowNumber);
+        const preferredSheetName = HubProjectFile.safeString(project.settings.preferredSheetName, 'IO-list', 255);
+
+        if (!Number.isInteger(headerRowNumber) || headerRowNumber < 1 || headerRowNumber > 100000) {
+          throw new Error('Project header row is invalid.');
+        }
+
+        this.sourceFileName = HubProjectFile.safeString(project.source.fileName);
+        this.usedSheetName = HubProjectFile.safeString(project.source.sheetName);
+        this.headerRowNumber = headerRowNumber;
+        this.preferredSheetName = preferredSheetName;
+        this.rows = rows;
+        this.fileError = '';
+        this.generateAll();
+        this.screen = 'app';
+        this.debug += `${this.debug ? '\n' : ''}Project opened: ${file.name}`;
+      } catch (err) {
+        const message = err && err.message ? err.message : String(err);
+        this.fileError = `Project open failed: ${message}`;
+        this.debug = this.fileError;
+      }
+    },
+
     // Carga el fichero Excel seleccionado, parsea las filas y lanza generateAll.
     onFile(e) {
       const file = e.target.files && e.target.files[0];
@@ -134,6 +194,7 @@ window._IO_GEN_VUE_APP = createApp({
 
           const ws   = wb.Sheets[sheetName];
           this.rows  = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: true, defval: '' });
+          this.sourceFileName = file.name;
 
           this.generateAll();
           this.screen = 'app';

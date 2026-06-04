@@ -457,6 +457,34 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .file-input-label:hover { filter: brightness(1.1); }
 
+.project-file-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: inherit;
+    background: var(--glass-bg);
+    color: var(--text-main);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.project-file-label:hover,
+.project-save-btn:hover {
+    background: var(--accent-color-hover);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.project-save-btn {
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    FORMULARIO
    ══════════════════════════════════════════════════════════════════════ */
@@ -812,4 +840,6 @@ input:checked + .slider:before { transform: translateX(20px); }
     .grid-4, .grid-2, .grid-5 { grid-template-columns: 1fr; }
     .grid-5 > :last-child { grid-column: auto; }
     .tab-bar { flex-direction: column; align-items: flex-start; }
+    .tab-meta { width: 100%; }
+    .project-file-label, .project-save-btn, .file-input-label { flex: 1; }
 }

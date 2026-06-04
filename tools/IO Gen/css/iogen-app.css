@@ -200,6 +200,60 @@ body {
     font-size: 13px;
 }
 
+.upload-divider {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0 14px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.upload-divider::before,
+.upload-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--glass-border);
+}
+
+.project-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 6px 13px;
+    border: 1px solid var(--accent-color);
+    border-radius: 9px;
+    background: var(--accent-color);
+    color: #ffffff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease, background-color 0.15s ease;
+}
+
+.project-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+}
+
+.project-btn-secondary {
+    background: var(--glass-bg);
+    color: var(--text-main);
+    border-color: var(--glass-border);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.project-btn-secondary:hover {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    background: var(--accent-color-hover);
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    LAYOUT PRINCIPAL DE LA APP (APP SHELL)
    ══════════════════════════════════════════════════════════════════════ */
@@ -312,7 +366,7 @@ body {
     position: absolute;
     top: 100%;
     left: 0;
-    min-width: 200px;
+    min-width: max-content;
     margin-top: 8px;
     padding: 6px;
 
@@ -332,10 +386,10 @@ body {
 .dropdown-content::before {
     content: "";
     position: absolute;
-    top: -15px;
-    left: 0;
-    width: 100%;
-    height: 15px;
+    top: -8px;
+    left: 12px;
+    right: 12px;
+    height: 8px;
     background: transparent;
 }
 
@@ -584,4 +638,31 @@ input:checked + .slider:before {
     width: calc(100% - 3rem);
     max-width: 960px;
     margin: 0 auto 0.35rem;
+}
+
+.project-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+@media (max-width: 720px) {
+    .upload-nav-bar,
+    .app-top-nav {
+        margin-top: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .status-bar {
+        width: calc(100% - 2rem);
+    }
+
+    .project-actions {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .project-actions .project-btn {
+        flex: 1;
+    }
 }
