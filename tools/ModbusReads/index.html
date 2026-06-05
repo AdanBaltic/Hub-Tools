@@ -78,6 +78,20 @@
       </div>
     </div>
 
+    <div class="project-bar">
+      <div class="project-bar-copy">
+        <span class="project-bar-title">Proyecto portable</span>
+        <span class="project-bar-description">Guarda los datos del Excel, Excel Settings y la configuracion de dispositivos.</span>
+      </div>
+      <div class="project-bar-actions">
+        <label class="project-file-label">
+          Abrir proyecto
+          <input type="file" @change="onProjectFile" accept=".hubproject" style="display:none" />
+        </label>
+        <button class="btn btn-primary project-save-btn" @click="saveProject">Guardar proyecto</button>
+      </div>
+    </div>
+
     <div v-if="showRoots && rootsList.length" class="roots-list">
       <span v-for="root in rootsList" :key="root" class="meta-pill">{{ root }}</span>
     </div>
@@ -268,6 +282,7 @@
 </div>
 
 <script src="js/theme.js"></script>
+<script src="../../js/project-file.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

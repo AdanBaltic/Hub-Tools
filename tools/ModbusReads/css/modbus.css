@@ -337,6 +337,45 @@ input:checked + .slider:before { transform: translateX(20px); }
     border-radius: 12px;
 }
 
+.project-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 10px 12px 10px 16px;
+    background: var(--card-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--card-border);
+    border-left: 3px solid var(--accent-color);
+    border-radius: 14px;
+    box-shadow: var(--card-shadow);
+}
+
+.project-bar-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.project-bar-title {
+    color: var(--text-main);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.project-bar-description {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.project-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    PANEL (glass card)
    ══════════════════════════════════════════════════════════════════════ */
@@ -456,6 +495,39 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 .file-input-label:hover { filter: brightness(1.1); }
+
+.project-file-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: inherit;
+    background: var(--glass-bg);
+    color: var(--text-main);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.project-file-label:hover {
+    background: var(--accent-color-hover);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.project-save-btn {
+    min-width: 126px;
+}
+
+.project-save-btn:hover {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #ffffff;
+    filter: brightness(1.1);
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    FORMULARIO
@@ -812,4 +884,8 @@ input:checked + .slider:before { transform: translateX(20px); }
     .grid-4, .grid-2, .grid-5 { grid-template-columns: 1fr; }
     .grid-5 > :last-child { grid-column: auto; }
     .tab-bar { flex-direction: column; align-items: flex-start; }
+    .tab-meta { width: 100%; }
+    .project-bar { align-items: stretch; flex-direction: column; }
+    .project-bar-actions { width: 100%; }
+    .project-file-label, .project-save-btn, .file-input-label { flex: 1; }
 }

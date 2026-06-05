@@ -60,6 +60,12 @@
 
 					<p class="upload-hint">.xlsx · .xls · .xlsm</p>
 
+					<div class="upload-divider"><span>o continuar un proyecto</span></div>
+					<label class="project-btn project-btn-secondary">
+						Abrir proyecto
+						<input type="file" @change="onProjectFile" accept=".hubproject" style="display:none" />
+					</label>
+
 					<div v-if="fileError" class="upload-error">{{ fileError }}</div>
 				</div>
 			</div>
@@ -164,6 +170,13 @@
 			<div class="status-bar">
 				<span class="pill">{{ usedSheetName || '—' }}</span>
 				<span class="pill pill-accent">I/Os: {{ controlCount || '—' }}</span>
+				<div class="project-actions">
+					<label class="project-btn project-btn-secondary">
+						Abrir proyecto
+						<input type="file" @change="onProjectFile" accept=".hubproject" style="display:none" />
+					</label>
+					<button class="project-btn" @click="saveProject">Guardar proyecto</button>
+				</div>
 			</div>
 
 			<main class="content-area">
@@ -285,6 +298,7 @@
 	</div>
 
 	<script src="config.js"></script>
+	<script src="../../js/project-file.js"></script>
 	<script src="js/theme.js"></script>
 	<script src="js/templates.js"></script>
 	<script src="js/plc-helpers.js"></script>
